@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Registro de Ventas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sales-form {
+        max-width: 600px;
+    }
+    .sales-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1><i class="bi bi-cart-check"></i> Registro de Ventas</h1>
+    <p class="text-muted">Registra cada venta realizada con el código del vendedor</p>
+</div>
+
+<div class="row">
+    <!-- Formulario de Venta -->
+    <div class="col-lg-5 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Nueva Venta</h5>
+            </div>
+            <div class="card-body">
+                <form id="saleForm" class="sales-form">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Vendedor</strong></label>
+                        <select class="form-select" id="vendorSelect" required>
+                            <option value="">Selecciona vendedor...</option>
+                        </select>
+                        <small class="text-muted">Si no existe, créalo en Configuración</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Producto</strong></label>
+                        <select class="form-select" id="productSelect" required>
+                            <option value="">Selecciona producto...</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Cantidad</strong></label>
+                        <input type="number" class="form-control" id="quantityInput" required min="1">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Precio Unitario ($)</strong></label>
+                        <input type="number" class="form-control" id="priceInput" required min="0.01" step="0.01">
+                    </div>
+
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <strong id="subtotal">$0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <strong>Total:</strong>
+                            <strong class="text-success fs-5" id="totalPrice">$0.00</strong>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 btn-lg">
+                        <i class="bi bi-check-circle"></i> Registrar Venta
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Ventas del Día -->
+    <div class="col-lg-7 mb-4">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Ventas del Día</h5>
+                <button class="btn btn-sm btn-outline-primary" id="filterBtn">
+                    <i class="bi bi-funnel"></i> Filtrar
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover sales-table">
+                        <thead>
+                            <tr>
+                                <th>Vendedor</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Precio</th>
+                                <th>Total</th>
+                                <th>Hora</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTable">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox"></i> Cargando ventas...
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <td colspan="4" class="text-end"><strong>Total del Día:</strong></td>
+                                <td><strong class="text-success" id="dayTotal">$0.00</strong></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/sales.js') }}"></script>
+{% endblock %}

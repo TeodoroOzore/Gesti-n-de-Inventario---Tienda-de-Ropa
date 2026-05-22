@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Ingreso de Mercadería{% endblock %}
+
+{% block extra_css %}
+<style>
+    .income-form {
+        max-width: 600px;
+    }
+    .income-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1><i class="bi bi-download"></i> Ingreso de Mercadería</h1>
+    <p class="text-muted">Registra los ingresos de nuevas existencias al inventario</p>
+</div>
+
+<div class="row">
+    <!-- Formulario de Ingreso -->
+    <div class="col-lg-5 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Nuevo Ingreso de Stock</h5>
+            </div>
+            <div class="card-body">
+                <form id="incomeForm" class="income-form">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Producto</strong></label>
+                        <select class="form-select" id="productSelect" required>
+                            <option value="">Selecciona producto...</option>
+                        </select>
+                        <small class="text-muted">Si no existe, créalo en Configuración</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Cantidad</strong></label>
+                        <input type="number" class="form-control" id="quantityInput" required min="1">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Costo Unitario ($)</strong></label>
+                        <input type="number" class="form-control" id="costInput" required min="0.01" step="0.01">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Proveedor</label>
+                        <input type="text" class="form-control" id="providerInput" placeholder="Ej: Distribuidor XYZ">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notas</label>
+                        <textarea class="form-control" id="notesInput" rows="2" placeholder="Notas adicionales..."></textarea>
+                    </div>
+
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between">
+                            <strong>Costo Total:</strong>
+                            <strong class="text-danger fs-5" id="totalCost">$0.00</strong>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 btn-lg">
+                        <i class="bi bi-check-circle"></i> Registrar Ingreso
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Ingresos -->
+    <div class="col-lg-7 mb-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Registro de Ingresos</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover income-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Costo Unit.</th>
+                                <th>Costo Total</th>
+                                <th>Proveedor</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incomeTable">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox"></i> Cargando ingresos...
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <td colspan="4" class="text-end"><strong>Total Invertido:</strong></td>
+                                <td><strong class="text-danger" id="totalInvested">$0.00</strong></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/income.js') }}"></script>
+{% endblock %}

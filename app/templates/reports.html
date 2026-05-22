@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Reportes y Análisis{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        border-top: 3px solid #007bff;
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1><i class="bi bi-file-earmark-text"></i> Reportes y Análisis</h1>
+    <p class="text-muted">Visualiza análisis detallados de tu negocio</p>
+</div>
+
+<!-- Filtros de Fecha -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Desde</label>
+                <input type="date" class="form-control" id="dateFrom">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Hasta</label>
+                <input type="date" class="form-control" id="dateTo">
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary w-100" id="filterBtn">
+                    <i class="bi bi-funnel"></i> Aplicar Filtro
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumen de Período -->
+<div class="row mb-4">
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card report-card">
+            <div class="card-body">
+                <p class="text-muted small mb-1">TOTAL VENTAS</p>
+                <p class="h4 mb-0" id="periodSales">$0.00</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card report-card border-top-success">
+            <div class="card-body">
+                <p class="text-muted small mb-1">COSTO DE VENTAS</p>
+                <p class="h4 mb-0 text-success" id="periodCosts">$0.00</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card report-card border-top-warning">
+            <div class="card-body">
+                <p class="text-muted small mb-1">EGRESOS</p>
+                <p class="h4 mb-0 text-warning" id="periodExpenses">$0.00</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card report-card border-top-danger">
+            <div class="card-body">
+                <p class="text-muted small mb-1">GANANCIA NETA</p>
+                <p class="h4 mb-0 text-danger" id="periodProfit">$0.00</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Rendimiento Diario</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Vendedores Top</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="topVendorsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Productos Más Vendidos -->
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Productos Más Vendidos</h5>
+                <button class="btn btn-sm btn-outline-primary" id="exportBtn">
+                    <i class="bi bi-download"></i> Descargar
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cantidad Vendida</th>
+                                <th>Ingresos</th>
+                                <th>Costo</th>
+                                <th>Ganancia</th>
+                                <th>Margen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topProductsTable">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox"></i> Cargando datos...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}

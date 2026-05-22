@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración{% endblock %}
+
+{% block extra_css %}
+<style>
+    .config-section {
+        padding: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .config-section:last-child {
+        border-bottom: none;
+    }
+    .list-item-action {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1><i class="bi bi-gear"></i> Configuración</h1>
+    <p class="text-muted">Gestiona vendedores y productos</p>
+</div>
+
+<!-- Tabs de Configuración -->
+<ul class="nav nav-tabs mb-4" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="vendorsTab" data-bs-toggle="tab" data-bs-target="#vendorsPanel" type="button" role="tab">
+            <i class="bi bi-person"></i> Vendedores
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="productsTab" data-bs-toggle="tab" data-bs-target="#productsPanel" type="button" role="tab">
+            <i class="bi bi-tag"></i> Productos
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Gestión de Vendedores -->
+    <div class="tab-pane fade show active" id="vendorsPanel" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-4 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Nuevo Vendedor</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="vendorForm">
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Código del Vendedor</strong></label>
+                                <input type="text" class="form-control" id="vendorCode" required placeholder="Ej: V001">
+                                <small class="text-muted">Código único para identificar al vendedor</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Nombre</strong></label>
+                                <input type="text" class="form-control" id="vendorName" required placeholder="Nombre completo">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-plus-circle"></i> Crear Vendedor
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8 mb-4">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Lista de Vendedores</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="vendorsList">
+                            <p class="text-muted text-center py-4"><i class="bi bi-inbox"></i> Cargando vendedores...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gestión de Productos -->
+    <div class="tab-pane fade" id="productsPanel" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-4 mb-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Nuevo Producto</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="productForm">
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Código</strong></label>
+                                <input type="text" class="form-control" id="productCode" required placeholder="Ej: REMERA-001">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Nombre</strong></label>
+                                <input type="text" class="form-control" id="productName" required placeholder="Ej: Remera Básica">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Categoría</label>
+                                <input type="text" class="form-control" id="productCategory" placeholder="Ej: Remeras">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Talle</label>
+                                <select class="form-select" id="productSize">
+                                    <option value="">Sin talle</option>
+                                    <option value="XS">XS</option>
+                                    <option value="S">S</option>
+                                    <option value="M">M</option>
+                                    <option value="L">L</option>
+                                    <option value="XL">XL</option>
+                                    <option value="XXL">XXL</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Color</label>
+                                <input type="text" class="form-control" id="productColor" placeholder="Ej: Azul">
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-plus-circle"></i> Crear Producto
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8 mb-4">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Lista de Productos</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="productsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre</th>
+                                        <th>Categoría</th>
+                                        <th>Talle</th>
+                                        <th>Color</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">
+                                            <i class="bi bi-inbox"></i> Cargando productos...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}
