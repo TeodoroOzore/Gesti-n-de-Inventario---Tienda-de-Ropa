@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template
+from datetime import datetime
 from app import db
 from app.models import Vendor, Product, Sale, Income, Expense
 
@@ -7,7 +8,7 @@ bp = Blueprint('main', __name__)
 @bp.route('/')
 def index():
     """Página principal del dashboard"""
-    return render_template('index.html')
+    return render_template('index.html', now=datetime.utcnow())
 
 @bp.route('/inventory')
 def inventory():
