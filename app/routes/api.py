@@ -116,7 +116,7 @@ def sales():
         # Actualizar inventario
         inventory = Inventory.query.filter_by(product_id=data['product_id']).first()
         if inventory:
-            inventory.quantity -= data['quantity']
+            inventory.quantity = (inventory.quantity or 0) - data['quantity']
         
         db.session.add(sale)
         db.session.commit()
@@ -142,7 +142,7 @@ def delete_sale(id):
     # Revertir inventario
     inventory = Inventory.query.filter_by(product_id=sale.product_id).first()
     if inventory:
-        inventory.quantity += sale.quantity
+        inventory.quantity = (inventory.quantity or 0) + sale.quantity
     
     db.session.delete(sale)
     db.session.commit()
@@ -167,10 +167,12 @@ def income():
         # Actualizar inventario
         inventory = Inventory.query.filter_by(product_id=data['product_id']).first()
         if not inventory:
-            inventory = Inventory(product_id=data['product_id'], cost=data['cost'])
+            # Inicializar quantity a 0 para evitar NoneType + int
+            inventory = Inventory(product_id=data['product_id'], cost=data['cost'], quantity=0)
             db.session.add(inventory)
         
-        inventory.quantity += data['quantity']
+        # Asegurarse de que quantity no sea None antes de sumar
+        inventory.quantity = (inventory.quantity or 0) + data['quantity']
         inventory.cost = data['cost']
         
         db.session.add(income_record)
@@ -197,7 +199,7 @@ def delete_income(id):
     # Revertir inventario
     inventory = Inventory.query.filter_by(product_id=income.product_id).first()
     if inventory:
-        inventory.quantity -= income.quantity
+        inventory.quantity = (inventory.quantity or 0) - income.quantity
     
     db.session.delete(income)
     db.session.commit()
@@ -320,17 +322,18 @@ def inventory_status():
     }
     
     for item in inventory:
-        result['total_items'] += item.quantity
-        
+        qty = item.quantity or 0
+        result['total_items'] += qty
+
         category = item.product.category or 'Sin categoría'
         if category not in result['categories']:
             result['categories'][category] = 0
-        result['categories'][category] += item.quantity
-        
-        if item.quantity < 5:
+        result['categories'][category] += qty
+
+        if qty < 5:
             result['low_stock'].append({
                 'product': item.product.name,
-                'quantity': item.quantity
+                'quantity': qty
             })
     
     return jsonify(result)

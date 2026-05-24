@@ -1,15 +1,22 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import os
+import sys
 
 db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
     
-    # Configuración
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    data_dir = os.path.join(os.path.dirname(basedir), 'data')
+    # Configuración del directorio de datos
+    if getattr(sys, 'frozen', False):
+        # Cuando se ejecuta desde un ejecutable PyInstaller
+        root_dir = os.path.dirname(sys.executable)
+    else:
+        # Cuando se ejecuta desde el código fuente
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    data_dir = os.path.join(root_dir, 'data')
     os.makedirs(data_dir, exist_ok=True)
     
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(data_dir, "tienda.db")}'
