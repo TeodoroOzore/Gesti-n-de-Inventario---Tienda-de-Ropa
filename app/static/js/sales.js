@@ -1,6 +1,9 @@
 /**
- * sales.js - Lógica de Ventas
+ * sales.js - Lógica de Ventas con Carrito de Compras
  */
+
+let cart = [];
+let products = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     loadVendors();
@@ -34,7 +37,7 @@ async function loadVendors() {
  */
 async function loadProducts() {
     try {
-        const products = await apiCall.get('/products');
+        products = await apiCall.get('/products');
         const select = document.getElementById('productSelect');
         
         select.innerHTML = '<option value="">Selecciona producto...</option>';
@@ -66,7 +69,7 @@ async function loadSales() {
 
         tbody.innerHTML = '';
         
-        if (sales.length === 0) {
+        if (!Array.isArray(sales) || sales.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay ventas registradas</td></tr>';
             document.getElementById('dayTotal').textContent = '$0.00';
             return;
@@ -102,13 +105,10 @@ async function loadSales() {
  * Configura listeners del formulario
  */
 function setupFormListeners() {
-    const quantityInput = document.getElementById('quantityInput');
-    const priceInput = document.getElementById('priceInput');
+    document.getElementById('productSelect').addEventListener('change', loadProductPrice);
+    document.getElementById('quantityInput').addEventListener('input', calculateLineTotal);
+    document.getElementById('addToCartBtn').addEventListener('click', addToCart);
     
-    [quantityInput, priceInput].forEach(input => {
-        input.addEventListener('input', calculateTotal);
-    });
-
     document.getElementById('saleForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         await saveSale();
@@ -116,48 +116,184 @@ function setupFormListeners() {
 }
 
 /**
- * Calcula total de venta
+ * Carga el precio del producto seleccionado desde el inventario
  */
-function calculateTotal() {
-    const quantity = parseFloat(document.getElementById('quantityInput').value) || 0;
-    const price = parseFloat(document.getElementById('priceInput').value) || 0;
+async function loadProductPrice() {
+    const productId = document.getElementById('productSelect').value;
+    const priceDisplay = document.getElementById('priceDisplay');
+    
+    if (!productId) {
+        priceDisplay.value = '';
+        document.getElementById('quantityInput').value = '1';
+        return;
+    }
+
+    try {
+        const inventory = await apiCall.get('/inventory');
+        const inventoryItem = inventory.find(item => item.product.id == productId);
+        
+        if (inventoryItem) {
+            const salePrice = inventoryItem.price || inventoryItem.cost;
+            priceDisplay.value = utils.formatMoney(salePrice);
+            document.getElementById('priceValue').value = salePrice;
+        } else {
+            priceDisplay.value = '$0.00';
+            document.getElementById('priceValue').value = '0';
+        }
+        document.getElementById('quantityInput').value = '1';
+        calculateLineTotal();
+    } catch (error) {
+        console.error('Error al cargar precio:', error);
+        priceDisplay.value = '$0.00';
+        document.getElementById('priceValue').value = '0';
+    }
+}
+
+/**
+ * Calcula el total de la línea
+ */
+function calculateLineTotal() {
+    const quantity = parseInt(document.getElementById('quantityInput').value) || 1;
+    const price = parseFloat(document.getElementById('priceValue').value) || 0;
     const total = quantity * price;
     
-    document.getElementById('subtotal').textContent = utils.formatMoney(quantity * price);
+    document.getElementById('subtotal').textContent = utils.formatMoney(total);
     document.getElementById('totalPrice').textContent = utils.formatMoney(total);
 }
 
 /**
- * Guarda la venta
+ * Agrega un producto al carrito
+ */
+function addToCart() {
+    const productId = parseInt(document.getElementById('productSelect').value);
+    const quantity = parseInt(document.getElementById('quantityInput').value);
+    const price = parseFloat(document.getElementById('priceValue').value) || 0;
+
+    if (!productId || quantity <= 0 || price <= 0) {
+        utils.showNotification('Selecciona un producto con precio válido y cantidad mayor a 0', 'warning');
+        return;
+    }
+
+    const existingItem = cart.find(item => item.product_id === productId);
+    const product = products.find(p => p.id === productId);
+
+    if (existingItem) {
+        existingItem.quantity += quantity;
+        utils.showNotification(`Cantidad actualizada para ${product.name}`, 'info');
+    } else {
+        cart.push({
+            product_id: productId,
+            product_name: product.name,
+            product_code: product.code,
+            quantity: quantity,
+            price: price
+        });
+        utils.showNotification(`${product.name} agregado al carrito`, 'success');
+    }
+
+    document.getElementById('productSelect').value = '';
+    document.getElementById('quantityInput').value = '1';
+    document.getElementById('priceDisplay').value = '';
+
+    updateCartDisplay();
+}
+
+/**
+ * Actualiza la visualización del carrito
+ */
+function updateCartDisplay() {
+    const cartContainer = document.getElementById('cartContainer');
+    const registerBtn = document.getElementById('registerSaleBtn');
+
+    if (cart.length === 0) {
+        cartContainer.innerHTML = '<p class="text-muted text-center py-3">El carrito está vacío</p>';
+        registerBtn.disabled = true;
+        document.getElementById('subtotal').textContent = '$0.00';
+        document.getElementById('totalPrice').textContent = '$0.00';
+        return;
+    }
+
+    registerBtn.disabled = false;
+    let cartHTML = '';
+    let cartTotal = 0;
+
+    cart.forEach((item, index) => {
+        const itemTotal = item.quantity * item.price;
+        cartTotal += itemTotal;
+        
+        cartHTML += `
+            <div class="cart-item">
+                <div class="cart-item-info">
+                    <div>
+                        <strong>${item.product_code} - ${item.product_name}</strong>
+                        <br>
+                        <small class="text-muted">${item.quantity} x ${utils.formatMoney(item.price)}</small>
+                    </div>
+                    <div class="text-right">
+                        <div class="cart-item-price">${utils.formatMoney(itemTotal)}</div>
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-2" onclick="removeFromCart(${index})">
+                            <i class="bi bi-trash"></i> Quitar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    cartContainer.innerHTML = cartHTML;
+    document.getElementById('subtotal').textContent = utils.formatMoney(cartTotal);
+    document.getElementById('totalPrice').textContent = utils.formatMoney(cartTotal);
+}
+
+/**
+ * Elimina un producto del carrito
+ */
+function removeFromCart(index) {
+    const item = cart[index];
+    cart.splice(index, 1);
+    utils.showNotification(`${item.product_name} removido del carrito`, 'info');
+    updateCartDisplay();
+}
+
+/**
+ * Guarda todas las ventas del carrito
  */
 async function saveSale() {
     try {
         const vendorId = document.getElementById('vendorSelect').value;
-        const productId = document.getElementById('productSelect').value;
-        const quantity = parseInt(document.getElementById('quantityInput').value);
-        const price = parseFloat(document.getElementById('priceInput').value);
 
-        if (!vendorId || !productId || quantity <= 0 || price <= 0) {
-            utils.showNotification('Por favor completa todos los campos correctamente', 'warning');
+        if (!vendorId) {
+            utils.showNotification('Por favor selecciona un vendedor', 'warning');
             return;
         }
 
-        const data = {
-            vendor_id: vendorId,
-            product_id: productId,
-            quantity: quantity,
-            price: price
-        };
+        if (cart.length === 0) {
+            utils.showNotification('El carrito está vacío', 'warning');
+            return;
+        }
 
-        await apiCall.post('/sales', data);
-        
+        for (const item of cart) {
+            const saleData = {
+                vendor_id: vendorId,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                price: item.price
+            };
+
+            await apiCall.post('/sales', saleData);
+        }
+
         utils.showNotification('Venta registrada correctamente', 'success');
+        
+        cart = [];
         document.getElementById('saleForm').reset();
+        document.getElementById('priceValue').value = '0';
+        document.getElementById('vendorSelect').focus();
+        updateCartDisplay();
         loadSales();
-        calculateTotal();
     } catch (error) {
-        console.error('Error al guardar venta:', error);
-        utils.showNotification('Error al registrar la venta', 'error');
+        console.error('Error al registrar venta:', error);
+        utils.showNotification(error.message || 'Error al registrar la venta', 'error');
     }
 }
 
@@ -166,10 +302,10 @@ async function saveSale() {
  */
 async function deleteSale(saleId) {
     if (!confirm('¿Estás seguro de que deseas eliminar esta venta?')) return;
-    
+
     try {
         await apiCall.delete(`/sales/${saleId}`);
-        utils.showNotification('Venta eliminada', 'success');
+        utils.showNotification('Venta eliminada correctamente', 'success');
         loadSales();
     } catch (error) {
         console.error('Error al eliminar venta:', error);

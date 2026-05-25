@@ -29,6 +29,7 @@
             </div>
             <div class="card-body">
                 <form id="incomeForm" class="income-form">
+                    <input type="hidden" id="incomeIdInput" value="">
                     <div class="mb-3">
                         <label class="form-label"><strong>Producto</strong></label>
                         <select class="form-select" id="productSelect" required>
@@ -48,6 +49,12 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label"><strong>Precio de Venta al Público ($)</strong></label>
+                        <input type="number" class="form-control" id="priceInput" required min="0.01" step="0.01">
+                        <small class="text-muted">Precio de venta recomendado para los clientes</small>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Proveedor</label>
                         <input type="text" class="form-control" id="providerInput" placeholder="Ej: Distribuidor XYZ">
                     </div>
@@ -64,9 +71,14 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success w-100 btn-lg">
-                        <i class="bi bi-check-circle"></i> Registrar Ingreso
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success w-100 btn-lg" id="submitIncomeBtn">
+                            <i class="bi bi-check-circle"></i> Registrar Ingreso
+                        </button>
+                        <button type="button" class="btn btn-secondary w-100 btn-lg d-none" id="cancelIncomeEditBtn">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -94,7 +106,7 @@
                         </thead>
                         <tbody id="incomeTable">
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="8" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox"></i> Cargando ingresos...
                                 </td>
                             </tr>

@@ -2,6 +2,8 @@
  * settings.js - Lógica de Configuración
  */
 
+let productsCache = [];
+
 document.addEventListener('DOMContentLoaded', function() {
     loadVendors();
     loadProducts();
@@ -52,6 +54,7 @@ async function loadVendors() {
 async function loadProducts() {
     try {
         const products = await apiCall.get('/products');
+        productsCache = products;
         const tbody = document.querySelector('#productsTable tbody');
         
         tbody.innerHTML = '';
@@ -70,7 +73,7 @@ async function loadProducts() {
                     <td>${product.size || '-'}</td>
                     <td>${product.color || '-'}</td>
                     <td>
-                        <button class="btn btn-sm btn-warning" onclick="editProduct(${product.id}, '${product.code}', '${product.name}', '${product.category || ''}', '${product.size || ''}', '${product.color || ''}')">
+                        <button class="btn btn-sm btn-warning" onclick="editProduct(${product.id})">
                             <i class="bi bi-pencil"></i>
                         </button>
                         <button class="btn btn-sm btn-danger" onclick="deleteProduct(${product.id})">
@@ -169,14 +172,38 @@ async function deleteVendor(id) {
  */
 async function saveProduct() {
     try {
-        const code = document.getElementById('productCode').value;
-        const name = document.getElementById('productName').value;
-        const category = document.getElementById('productCategory').value;
+        const code = document.getElementById('productCode').value.trim();
+        const name = document.getElementById('productName').value.trim();
+        const category = document.getElementById('productCategory').value.trim();
         const size = document.getElementById('productSize').value;
-        const color = document.getElementById('productColor').value;
+        const color = document.getElementById('productColor').value.trim();
 
         if (!code || !name) {
             utils.showNotification('Por favor completa los campos obligatorios', 'warning');
+            return;
+        }
+
+        const products = await apiCall.get('/products');
+        const normalizedCode = code.toLowerCase();
+        const normalizedName = name.toLowerCase();
+        const normalizedCategory = category.toLowerCase();
+        const normalizedSize = size ? size.toLowerCase() : '';
+        const normalizedColor = color.toLowerCase();
+
+        if (products.some(product => product.code.toLowerCase() === normalizedCode)) {
+            utils.showNotification('El código ya está en uso por otro producto.', 'warning');
+            return;
+        }
+
+        const duplicateProduct = products.find(product =>
+            product.name.toLowerCase() === normalizedName &&
+            (product.category || '').toLowerCase() === normalizedCategory &&
+            (product.size || '').toLowerCase() === normalizedSize &&
+            (product.color || '').toLowerCase() === normalizedColor
+        );
+
+        if (duplicateProduct) {
+            utils.showNotification('Ya existe un producto con el mismo nombre, talle, color y categoría.', 'warning');
             return;
         }
 
@@ -195,16 +222,81 @@ async function saveProduct() {
         loadProducts();
     } catch (error) {
         console.error('Error al guardar producto:', error);
-        utils.showNotification('Error al crear el producto', 'error');
+        utils.showNotification(error.message || 'Error al crear el producto', 'error');
     }
 }
 
 /**
  * Edita un producto
  */
-function editProduct(id, code, name, category, size, color) {
-    // Implementar lógica de edición similar a vendedores
-    console.log('Editar producto:', id);
+async function editProduct(id) {
+    const product = productsCache.find(p => p.id === id);
+    if (!product) {
+        utils.showNotification('No se encontró el producto para editar.', 'error');
+        return;
+    }
+
+    const newCode = prompt('Nuevo código de producto:', product.code);
+    if (newCode === null) return;
+
+    const newName = prompt('Nuevo nombre:', product.name);
+    if (newName === null) return;
+
+    const newCategory = prompt('Nueva categoría:', product.category || '');
+    if (newCategory === null) return;
+
+    const newSize = prompt('Nuevo talle:', product.size || '');
+    if (newSize === null) return;
+
+    const newColor = prompt('Nuevo color:', product.color || '');
+    if (newColor === null) return;
+
+    if (!newCode.trim() || !newName.trim()) {
+        utils.showNotification('El código y el nombre son obligatorios.', 'warning');
+        return;
+    }
+
+    const normalizedCode = newCode.trim().toLowerCase();
+    const normalizedName = newName.trim().toLowerCase();
+    const normalizedCategory = newCategory.trim().toLowerCase();
+    const normalizedSize = newSize.trim().toLowerCase();
+    const normalizedColor = newColor.trim().toLowerCase();
+
+    const otherProducts = productsCache.filter(p => p.id !== id);
+
+    if (otherProducts.some(product => product.code.toLowerCase() === normalizedCode)) {
+        utils.showNotification('El código ya está en uso por otro producto.', 'warning');
+        return;
+    }
+
+    const duplicateProduct = otherProducts.find(product =>
+        product.name.toLowerCase() === normalizedName &&
+        (product.category || '').toLowerCase() === normalizedCategory &&
+        (product.size || '').toLowerCase() === normalizedSize &&
+        (product.color || '').toLowerCase() === normalizedColor
+    );
+
+    if (duplicateProduct) {
+        utils.showNotification('Ya existe otro producto con el mismo nombre, talle, color y categoría.', 'warning');
+        return;
+    }
+
+    try {
+        const data = {
+            code: newCode.trim(),
+            name: newName.trim(),
+            category: newCategory.trim() || null,
+            size: newSize.trim() || null,
+            color: newColor.trim() || null
+        };
+
+        await apiCall.put(`/products/${id}`, data);
+        utils.showNotification('Producto actualizado correctamente', 'success');
+        loadProducts();
+    } catch (error) {
+        console.error('Error al editar producto:', error);
+        utils.showNotification(error.message || 'Error al actualizar el producto', 'error');
+    }
 }
 
 /**

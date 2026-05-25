@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Vendor, Product, Inventory, Sale, Income, Expense
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy import func
 
 bp = Blueprint('api', __name__)
@@ -39,6 +39,22 @@ def vendor_detail(id):
 def products():
     if request.method == 'POST':
         data = request.get_json()
+
+        # Validar código único
+        existing_code = Product.query.filter_by(code=data['code']).first()
+        if existing_code:
+            return jsonify({'error': 'El código ya está en uso por otro producto.'}), 400
+
+        # Validar producto duplicado por nombre, talle, color y categoría
+        duplicate_product = Product.query.filter(
+            Product.name == data['name'],
+            Product.size == data.get('size'),
+            Product.color == data.get('color'),
+            Product.category == data.get('category')
+        ).first()
+        if duplicate_product:
+            return jsonify({'error': 'Ya existe un producto con el mismo nombre, talle, color y categoría.'}), 400
+
         product = Product(
             code=data['code'],
             name=data['name'],
@@ -59,11 +75,32 @@ def product_detail(id):
     
     if request.method == 'PUT':
         data = request.get_json()
-        product.code = data.get('code', product.code)
-        product.name = data.get('name', product.name)
-        product.size = data.get('size', product.size)
-        product.color = data.get('color', product.color)
-        product.category = data.get('category', product.category)
+
+        new_code = data.get('code', product.code)
+        if new_code != product.code:
+            duplicate_code = Product.query.filter(Product.code == new_code, Product.id != id).first()
+            if duplicate_code:
+                return jsonify({'error': 'El código ya está en uso por otro producto.'}), 400
+
+        new_name = data.get('name', product.name)
+        new_size = data.get('size', product.size)
+        new_color = data.get('color', product.color)
+        new_category = data.get('category', product.category)
+        duplicate_product = Product.query.filter(
+            Product.name == new_name,
+            Product.size == new_size,
+            Product.color == new_color,
+            Product.category == new_category,
+            Product.id != id
+        ).first()
+        if duplicate_product:
+            return jsonify({'error': 'Ya existe otro producto con el mismo nombre, talle, color y categoría.'}), 400
+
+        product.code = new_code
+        product.name = new_name
+        product.size = new_size
+        product.color = new_color
+        product.category = new_category
         db.session.commit()
         return jsonify(product.to_dict())
     
@@ -94,6 +131,7 @@ def update_inventory(product_id):
     
     inventory.quantity = data.get('quantity', inventory.quantity)
     inventory.cost = data.get('cost', inventory.cost)
+    inventory.price = data.get('price', inventory.price)
     db.session.commit()
     
     return jsonify(inventory.to_dict())
@@ -159,6 +197,7 @@ def income():
             product_id=data['product_id'],
             quantity=data['quantity'],
             cost=data['cost'],
+            price=data.get('price', data['cost']),
             total_cost=data['quantity'] * data['cost'],
             provider=data.get('provider'),
             notes=data.get('notes')
@@ -167,14 +206,20 @@ def income():
         # Actualizar inventario
         inventory = Inventory.query.filter_by(product_id=data['product_id']).first()
         if not inventory:
-            # Inicializar quantity a 0 para evitar NoneType + int
-            inventory = Inventory(product_id=data['product_id'], cost=data['cost'], quantity=0)
+            inventory = Inventory(
+                product_id=data['product_id'],
+                cost=data['cost'],
+                price=data.get('price', data['cost']),
+                quantity=0
+            )
             db.session.add(inventory)
-        
-        # Asegurarse de que quantity no sea None antes de sumar
-        inventory.quantity = (inventory.quantity or 0) + data['quantity']
+
+        quantity = data['quantity'] if isinstance(data['quantity'], int) else int(data['quantity'])
+        inventory.quantity = (inventory.quantity or 0) + quantity
         inventory.cost = data['cost']
-        
+        if 'price' in data and data['price']:
+            inventory.price = data['price']
+
         db.session.add(income_record)
         db.session.commit()
         return jsonify(income_record.to_dict()), 201
@@ -192,15 +237,47 @@ def income():
     income_list = query.all()
     return jsonify([i.to_dict() for i in income_list])
 
-@bp.route('/income/<int:id>', methods=['DELETE'])
-def delete_income(id):
+@bp.route('/income/<int:id>', methods=['PUT', 'DELETE'])
+def income_update_delete(id):
     income = Income.query.get_or_404(id)
-    
-    # Revertir inventario
     inventory = Inventory.query.filter_by(product_id=income.product_id).first()
+
+    if request.method == 'PUT':
+        data = request.get_json()
+
+        # Revertir inventario del ingreso original
+        if inventory:
+            inventory.quantity = (inventory.quantity or 0) - income.quantity
+
+        income.product_id = data.get('product_id', income.product_id)
+        income.quantity = data.get('quantity', income.quantity)
+        income.cost = data.get('cost', income.cost)
+        income.price = data.get('price', income.price)
+        income.total_cost = income.quantity * income.cost
+        income.provider = data.get('provider', income.provider)
+        income.notes = data.get('notes', income.notes)
+
+        # Ajustar inventario del producto actualizado
+        new_inventory = Inventory.query.filter_by(product_id=income.product_id).first()
+        if not new_inventory:
+            new_inventory = Inventory(
+                product_id=income.product_id,
+                cost=income.cost,
+                price=income.price,
+                quantity=0
+            )
+            db.session.add(new_inventory)
+
+        new_inventory.quantity = (new_inventory.quantity or 0) + income.quantity
+        new_inventory.cost = income.cost
+        new_inventory.price = income.price
+
+        db.session.commit()
+        return jsonify(income.to_dict()), 200
+
+    # DELETE
     if inventory:
         inventory.quantity = (inventory.quantity or 0) - income.quantity
-    
     db.session.delete(income)
     db.session.commit()
     return '', 204

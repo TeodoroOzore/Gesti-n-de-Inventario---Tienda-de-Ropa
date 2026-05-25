@@ -14,11 +14,11 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadInventory() {
     try {
         const inventory = await apiCall.get('/inventory');
-        const tbody = document.querySelector('#inventoryTable tbody');
+        const tbody = document.querySelector('#inventoryTable');
 
         tbody.innerHTML = '';
         
-        if (inventory.length === 0) {
+        if (!Array.isArray(inventory) || inventory.length === 0) {
             tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay productos en inventario</td></tr>';
             return;
         }
@@ -38,6 +38,7 @@ async function loadInventory() {
                         </span>
                     </td>
                     <td>${utils.formatMoney(item.cost)}</td>
+                    <td>${utils.formatMoney(item.price || item.cost)}</td>
                     <td><strong>${utils.formatMoney(item.total_value)}</strong></td>
                     <td>
                         <button class="btn btn-sm btn-warning" onclick="editInventory(${product.id})">
@@ -106,15 +107,17 @@ async function saveInventory() {
         const productId = document.getElementById('productSelect').value;
         const quantity = parseInt(document.getElementById('quantityInput').value);
         const cost = parseFloat(document.getElementById('costInput').value);
+        const price = parseFloat(document.getElementById('priceInput').value);
 
-        if (!productId || quantity < 0 || cost < 0) {
+        if (!productId || quantity < 0 || cost < 0 || price < 0) {
             utils.showNotification('Por favor completa todos los campos correctamente', 'warning');
             return;
         }
 
         const data = {
             quantity: quantity,
-            cost: cost
+            cost: cost,
+            price: price
         };
 
         await apiCall.put(`/inventory/${productId}`, data);

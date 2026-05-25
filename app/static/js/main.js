@@ -83,11 +83,26 @@ const apiCall = {
     /**
      * GET request
      */
+    handleResponse: async function(response) {
+        if (response.ok) {
+            return response.status === 204 ? null : await response.json();
+        }
+
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+            const body = await response.json();
+            errorMessage = body.error || body.message || errorMessage;
+        } catch (e) {
+            // ignore invalid JSON body
+        }
+
+        throw new Error(errorMessage);
+    },
+
     get: async function(endpoint) {
         try {
             const response = await fetch(`${API_BASE}${endpoint}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
+            return await this.handleResponse(response);
         } catch (error) {
             console.error('Error en GET:', error);
             throw error;
@@ -104,8 +119,7 @@ const apiCall = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
+            return await this.handleResponse(response);
         } catch (error) {
             console.error('Error en POST:', error);
             throw error;
@@ -122,8 +136,7 @@ const apiCall = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
+            return await this.handleResponse(response);
         } catch (error) {
             console.error('Error en PUT:', error);
             throw error;
@@ -138,8 +151,7 @@ const apiCall = {
             const response = await fetch(`${API_BASE}${endpoint}`, {
                 method: 'DELETE'
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.status === 204 ? null : await response.json();
+            return await this.handleResponse(response);
         } catch (error) {
             console.error('Error en DELETE:', error);
             throw error;

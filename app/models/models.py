@@ -52,6 +52,7 @@ class Inventory(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, default=0)
     cost = db.Column(db.Float, default=0)  # Costo unitario
+    price = db.Column(db.Float, default=0)  # Precio de venta al público
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def to_dict(self):
@@ -59,7 +60,8 @@ class Inventory(db.Model):
             'id': self.id,
             'product': self.product.to_dict() if self.product else None,
             'quantity': self.quantity,
-            'cost': self.cost
+            'cost': self.cost,
+            'price': self.price
         }
 
 class Sale(db.Model):
@@ -93,6 +95,7 @@ class Income(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
     cost = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False)
     total_cost = db.Column(db.Float, nullable=False)
     provider = db.Column(db.String(100))
     notes = db.Column(db.Text)
@@ -106,6 +109,7 @@ class Income(db.Model):
             'product': self.product.to_dict() if self.product else None,
             'quantity': self.quantity,
             'cost': self.cost,
+            'price': self.price,
             'total_cost': self.total_cost,
             'provider': self.provider,
             'notes': self.notes,
