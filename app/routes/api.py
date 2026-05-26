@@ -166,18 +166,50 @@ def sales():
     query = Sale.query
     
     if date_from:
-        query = query.filter(Sale.date >= datetime.fromisoformat(date_from))
-    if date_to:
-        query = query.filter(Sale.date <= datetime.fromisoformat(date_to))
+        try:
+            from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            query = query.filter(Sale.date >= from_dt)
+        except (ValueError, AttributeError):
+            pass
     
-    sales_list = query.all()
+    if date_to:
+        try:
+            to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            query = query.filter(Sale.date <= to_dt)
+        except (ValueError, AttributeError):
+            pass
+    
+    sales_list = query.order_by(Sale.date.desc()).all()
     return jsonify([s.to_dict() for s in sales_list])
 
-@bp.route('/sales/<int:id>', methods=['DELETE'])
-def delete_sale(id):
+@bp.route('/sales/<int:id>', methods=['PUT', 'DELETE'])
+def update_delete_sale(id):
     sale = Sale.query.get_or_404(id)
     
-    # Revertir inventario
+    if request.method == 'PUT':
+        data = request.get_json()
+        
+        # Revertir inventario de la venta original
+        inventory = Inventory.query.filter_by(product_id=sale.product_id).first()
+        if inventory:
+            inventory.quantity = (inventory.quantity or 0) + sale.quantity
+        
+        # Actualizar datos de la venta
+        sale.vendor_id = data.get('vendor_id', sale.vendor_id)
+        sale.product_id = data.get('product_id', sale.product_id)
+        sale.quantity = data.get('quantity', sale.quantity)
+        sale.price = data.get('price', sale.price)
+        sale.total = sale.quantity * sale.price
+        
+        # Ajustar inventario del producto actualizado
+        new_inventory = Inventory.query.filter_by(product_id=sale.product_id).first()
+        if new_inventory:
+            new_inventory.quantity = (new_inventory.quantity or 0) - sale.quantity
+        
+        db.session.commit()
+        return jsonify(sale.to_dict()), 200
+    
+    # DELETE
     inventory = Inventory.query.filter_by(product_id=sale.product_id).first()
     if inventory:
         inventory.quantity = (inventory.quantity or 0) + sale.quantity

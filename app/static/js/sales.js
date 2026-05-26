@@ -59,18 +59,18 @@ async function loadProducts() {
  */
 async function loadSales() {
     try {
-        const today = new Date().toISOString().split('T')[0];
-        const from = today + 'T00:00:00';
-        const to = today + 'T23:59:59';
+        const today = new Date();
+        const from = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0).toISOString();
+        const to = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
         
         const sales = await apiCall.get(`/sales?from=${from}&to=${to}`);
-        const tbody = document.querySelector('#salesTable tbody');
+        const tbody = document.getElementById('salesTable');
         let total = 0;
 
         tbody.innerHTML = '';
         
         if (!Array.isArray(sales) || sales.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay ventas registradas</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay ventas registradas</td></tr>';
             document.getElementById('dayTotal').textContent = '$0.00';
             return;
         }
@@ -78,7 +78,7 @@ async function loadSales() {
         sales.forEach(sale => {
             total += sale.total;
             const row = `
-                <tr>
+                <tr id="saleRow-${sale.id}">
                     <td>${sale.vendor.name}</td>
                     <td>${sale.product.name}</td>
                     <td>${sale.quantity}</td>
@@ -86,6 +86,9 @@ async function loadSales() {
                     <td><strong>${utils.formatMoney(sale.total)}</strong></td>
                     <td>${utils.formatTime(sale.date)}</td>
                     <td>
+                        <button class="btn btn-sm btn-warning me-2" onclick="editSale(${sale.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
                         <button class="btn btn-sm btn-danger" onclick="deleteSale(${sale.id})">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -94,7 +97,8 @@ async function loadSales() {
             `;
             tbody.innerHTML += row;
         });
-
+        
+        window.salesData = sales;
         document.getElementById('dayTotal').textContent = utils.formatMoney(total);
     } catch (error) {
         console.error('Error al cargar ventas:', error);
@@ -204,10 +208,20 @@ function addToCart() {
 function updateCartDisplay() {
     const cartContainer = document.getElementById('cartContainer');
     const registerBtn = document.getElementById('registerSaleBtn');
+    const editingSaleId = document.getElementById('editingSaleId').value;
 
     if (cart.length === 0) {
         cartContainer.innerHTML = '<p class="text-muted text-center py-3">El carrito está vacío</p>';
-        registerBtn.disabled = true;
+        
+        // En modo edición, habilitar el botón si tenemos datos en el formulario
+        if (editingSaleId) {
+            const productId = document.getElementById('productSelect').value;
+            const vendorId = document.getElementById('vendorSelect').value;
+            registerBtn.disabled = !(vendorId && productId);
+        } else {
+            registerBtn.disabled = true;
+        }
+        
         document.getElementById('subtotal').textContent = '$0.00';
         document.getElementById('totalPrice').textContent = '$0.00';
         return;
@@ -256,34 +270,54 @@ function removeFromCart(index) {
 }
 
 /**
- * Guarda todas las ventas del carrito
+ * Guarda todas las ventas del carrito o edita una venta existente
  */
 async function saveSale() {
     try {
         const vendorId = document.getElementById('vendorSelect').value;
+        const editingSaleId = document.getElementById('editingSaleId').value;
 
         if (!vendorId) {
             utils.showNotification('Por favor selecciona un vendedor', 'warning');
             return;
         }
 
-        if (cart.length === 0) {
-            utils.showNotification('El carrito está vacío', 'warning');
-            return;
+        if (editingSaleId) {
+            // Modo edición: actualizar una venta existente
+            if (cart.length === 0) {
+                const saleData = {
+                    vendor_id: vendorId,
+                    product_id: document.getElementById('productSelect').value,
+                    quantity: parseInt(document.getElementById('quantityInput').value),
+                    price: parseFloat(document.getElementById('priceValue').value)
+                };
+                
+                await apiCall.put(`/sales/${editingSaleId}`, saleData);
+                utils.showNotification('Venta actualizada correctamente', 'success');
+                cancelSaleEdit();
+            } else {
+                utils.showNotification('Vacía el carrito antes de actualizar la venta', 'warning');
+                return;
+            }
+        } else {
+            // Modo nuevo: crear múltiples ventas del carrito
+            if (cart.length === 0) {
+                utils.showNotification('El carrito está vacío', 'warning');
+                return;
+            }
+
+            for (const item of cart) {
+                const saleData = {
+                    vendor_id: vendorId,
+                    product_id: item.product_id,
+                    quantity: item.quantity,
+                    price: item.price
+                };
+
+                await apiCall.post('/sales', saleData);
+            }
+            utils.showNotification('Venta registrada correctamente', 'success');
         }
-
-        for (const item of cart) {
-            const saleData = {
-                vendor_id: vendorId,
-                product_id: item.product_id,
-                quantity: item.quantity,
-                price: item.price
-            };
-
-            await apiCall.post('/sales', saleData);
-        }
-
-        utils.showNotification('Venta registrada correctamente', 'success');
         
         cart = [];
         document.getElementById('saleForm').reset();
@@ -295,6 +329,72 @@ async function saveSale() {
         console.error('Error al registrar venta:', error);
         utils.showNotification(error.message || 'Error al registrar la venta', 'error');
     }
+}
+
+/**
+ * Edita una venta existente
+ */
+function editSale(saleId) {
+    const salesData = window.salesData || [];
+    const sale = salesData.find(s => s.id === saleId);
+    
+    if (!sale) {
+        utils.showNotification('Venta no encontrada', 'error');
+        return;
+    }
+    
+    // Cargar datos en el formulario
+    document.getElementById('vendorSelect').value = sale.vendor.id;
+    document.getElementById('productSelect').value = sale.product.id;
+    document.getElementById('quantityInput').value = sale.quantity;
+    document.getElementById('priceDisplay').value = utils.formatMoney(sale.price);
+    document.getElementById('priceValue').value = sale.price;
+    document.getElementById('editingSaleId').value = saleId;
+    
+    // Cambiar el botón a "Actualizar"
+    const btn = document.getElementById('registerSaleBtn');
+    btn.innerHTML = '<i class="bi bi-save"></i> Actualizar Venta';
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-info');
+    
+    // Agregar botón de cancelar
+    if (!document.getElementById('cancelSaleEditBtn')) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.id = 'cancelSaleEditBtn';
+        cancelBtn.className = 'btn btn-secondary w-100';
+        cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar Edición';
+        cancelBtn.addEventListener('click', cancelSaleEdit);
+        btn.parentElement.appendChild(cancelBtn);
+    }
+    
+    // Desactivar botón de agregar al carrito
+    document.getElementById('addToCartBtn').disabled = true;
+    
+    // Actualizar estado del botón de guardar
+    updateCartDisplay();
+    
+    utils.showNotification('Modo edición activado', 'info');
+}
+
+/**
+ * Cancela la edición de una venta
+ */
+function cancelSaleEdit() {
+    document.getElementById('editingSaleId').value = '';
+    document.getElementById('saleForm').reset();
+    document.getElementById('priceValue').value = '0';
+    document.getElementById('addToCartBtn').disabled = false;
+    
+    const btn = document.getElementById('registerSaleBtn');
+    btn.innerHTML = '<i class="bi bi-check-circle"></i> Registrar Venta Completa';
+    btn.classList.remove('btn-info');
+    btn.classList.add('btn-success');
+    
+    const cancelBtn = document.getElementById('cancelSaleEditBtn');
+    if (cancelBtn) cancelBtn.remove();
+    
+    updateCartDisplay();
 }
 
 /**

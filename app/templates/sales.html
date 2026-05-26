@@ -46,6 +46,7 @@
             </div>
             <div class="card-body">
                 <form id="saleForm" class="sales-form">
+                    <input type="hidden" id="editingSaleId" value="">
                     <div class="mb-3">
                         <label class="form-label"><strong>Vendedor</strong></label>
                         <select class="form-select" id="vendorSelect" required>
@@ -132,12 +133,12 @@
                                 <th>Precio</th>
                                 <th>Total</th>
                                 <th>Hora</th>
-                                <th>Acciones</th>
+                                <th style="width: 120px;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="salesTable">
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="8" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox"></i> Cargando ventas...
                                 </td>
                             </tr>
@@ -146,7 +147,7 @@
                             <tr class="table-light">
                                 <td colspan="4" class="text-end"><strong>Total del Día:</strong></td>
                                 <td><strong class="text-success" id="dayTotal">$0.00</strong></td>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -155,6 +156,16 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Cargar datos iniciales cuando se carga la página
+    document.addEventListener('DOMContentLoaded', () => {
+        loadVendors();
+        loadProducts();
+        loadSales();
+        setupFormListeners();
+    });
+</script>
 
 {% endblock %}
 
