@@ -7,6 +7,11 @@
     .sales-form {
         max-width: 600px;
     }
+    .form-container {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
     .sales-table th {
         background-color: #f8f9fa;
         font-weight: 600;
@@ -28,6 +33,18 @@
         font-weight: bold;
         color: #28a745;
     }
+    .search-container {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    #productSearchInput {
+        flex: 1;
+    }
+    .product-option-disabled {
+        background-color: #e9ecef;
+        color: #999;
+    }
 </style>
 {% endblock %}
 
@@ -37,10 +54,10 @@
     <p class="text-muted">Registra cada venta realizada por el vendedor</p>
 </div>
 
-<div class="row">
+<div>
     <!-- Formulario de Venta -->
-    <div class="col-lg-5 mb-4">
-        <div class="card">
+    <div class="form-container">
+        <div class="card" style="width: 100%; max-width: 600px;">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">Nueva Venta - Carrito de Compras</h5>
             </div>
@@ -59,9 +76,16 @@
 
                     <div class="mb-3">
                         <label class="form-label"><strong>Producto</strong></label>
+                        <div class="search-container">
+                            <input type="text" class="form-control" id="productSearchInput" placeholder="Buscar por código...">
+                            <button type="button" class="btn btn-outline-secondary" id="clearSearchBtn" title="Limpiar búsqueda">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
                         <select class="form-select" id="productSelect">
                             <option value="">Selecciona producto...</option>
                         </select>
+                        <small class="text-muted">Los productos sombreados no tienen stock disponible</small>
                     </div>
 
                     <div class="row">
@@ -79,6 +103,16 @@
                                 <small class="text-muted">Precio automático del inventario</small>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="paymentMethodSelect" class="form-label"><strong>Método de Pago</strong></label>
+                        <select class="form-select" id="paymentMethodSelect" required>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia / Billetera Virtual</option>
+                            <option value="Tarjeta">Tarjeta de Débito / Crédito</option>
+                        </select>
+                        <small class="text-muted">Selecciona cómo se realizó el pago</small>
                     </div>
 
                     <button type="button" class="btn btn-info w-100 mb-3" id="addToCartBtn">
@@ -114,13 +148,10 @@
     </div>
 
     <!-- Tabla de Ventas del Día -->
-    <div class="col-lg-7 mb-4">
+    <div class="mb-4">
         <div class="card">
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Ventas del Día</h5>
-                <button class="btn btn-sm btn-outline-primary" id="filterBtn">
-                    <i class="bi bi-funnel"></i> Filtrar
-                </button>
+                <h5 class="mb-0">Historial de Ventas</h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -138,14 +169,14 @@
                         </thead>
                         <tbody id="salesTable">
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
+                                <td colspan="7" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox"></i> Cargando ventas...
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr class="table-light">
-                                <td colspan="4" class="text-end"><strong>Total del Día:</strong></td>
+                                <td colspan="4" class="text-end"><strong>Total Ventas:</strong></td>
                                 <td><strong class="text-success" id="dayTotal">$0.00</strong></td>
                                 <td colspan="3"></td>
                             </tr>
@@ -156,16 +187,6 @@
         </div>
     </div>
 </div>
-
-<script>
-    // Cargar datos iniciales cuando se carga la página
-    document.addEventListener('DOMContentLoaded', () => {
-        loadVendors();
-        loadProducts();
-        loadSales();
-        setupFormListeners();
-    });
-</script>
 
 {% endblock %}
 

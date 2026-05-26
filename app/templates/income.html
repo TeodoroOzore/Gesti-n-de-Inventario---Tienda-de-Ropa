@@ -7,6 +7,11 @@
     .income-form {
         max-width: 600px;
     }
+    .form-container {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
     .income-table th {
         background-color: #f8f9fa;
         font-weight: 600;
@@ -20,10 +25,10 @@
     <p class="text-muted">Registra los ingresos de nuevas existencias al inventario</p>
 </div>
 
-<div class="row">
+<div>
     <!-- Formulario de Ingreso -->
-    <div class="col-lg-5 mb-4">
-        <div class="card">
+    <div class="form-container">
+        <div class="card" style="width: 100%; max-width: 600px;">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">Nuevo Ingreso de Stock</h5>
             </div>
@@ -85,7 +90,7 @@
     </div>
 
     <!-- Tabla de Ingresos -->
-    <div class="col-lg-7 mb-4">
+    <div class="mb-4">
         <div class="card">
             <div class="card-header bg-light">
                 <h5 class="mb-0">Registro de Ingresos</h5>
@@ -106,15 +111,15 @@
                         </thead>
                         <tbody id="incomeTable">
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
+                                <td colspan="7" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox"></i> Cargando ingresos...
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr class="table-light">
-                                <td colspan="4" class="text-end"><strong>Total Invertido:</strong></td>
-                                <td><strong class="text-danger" id="totalInvested">$0.00</strong></td>
+                                <td colspan="3" class="text-end"><strong>Total Invertido:</strong></td>
+                                <td colspan="2"><strong class="text-danger" id="totalInvested">$0.00</strong></td>
                                 <td colspan="2"></td>
                             </tr>
                         </tfoot>

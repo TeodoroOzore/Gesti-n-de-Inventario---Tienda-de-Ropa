@@ -1,5 +1,5 @@
-from flask import Blueprint, request, jsonify
-from app import db
+from flask import Blueprint, request, jsonify, make_response
+from app import db # Asegúrate de que 'db' esté importado
 from app.models import Vendor, Product, Inventory, Sale, Income, Expense
 from datetime import datetime
 from sqlalchemy import func
@@ -142,17 +142,22 @@ def sales():
     if request.method == 'POST':
         data = request.get_json()
         
+        # Validar stock suficiente
+        inventory = Inventory.query.filter_by(product_id=data['product_id']).first()
+        if not inventory or (inventory.quantity or 0) < data['quantity']:
+            return jsonify({'error': 'Stock insuficiente para realizar la venta.'}), 400
+
         # Crear venta
         sale = Sale(
             vendor_id=data['vendor_id'],
             product_id=data['product_id'],
             quantity=data['quantity'],
             price=data['price'],
-            total=data['quantity'] * data['price']
+            total=data['quantity'] * data['price'],
+            payment_method=data.get('payment_method', 'Efectivo') # Por defecto Efectivo
         )
         
         # Actualizar inventario
-        inventory = Inventory.query.filter_by(product_id=data['product_id']).first()
         if inventory:
             inventory.quantity = (inventory.quantity or 0) - data['quantity']
         
@@ -188,6 +193,19 @@ def update_delete_sale(id):
     
     if request.method == 'PUT':
         data = request.get_json()
+        new_qty = data.get('quantity', sale.quantity)
+        new_product_id = data.get('product_id', sale.product_id)
+
+        # Validar stock suficiente antes de actualizar
+        # Sumamos la cantidad de la venta actual al stock disponible para validar el nuevo total
+        target_inv = Inventory.query.filter_by(product_id=new_product_id).first()
+        available_stock = (target_inv.quantity or 0) if target_inv else 0
+        
+        if new_product_id == sale.product_id:
+            available_stock += sale.quantity
+
+        if available_stock < new_qty:
+            return jsonify({'error': 'Stock insuficiente para actualizar la venta.'}), 400
         
         # Revertir inventario de la venta original
         inventory = Inventory.query.filter_by(product_id=sale.product_id).first()
@@ -199,6 +217,7 @@ def update_delete_sale(id):
         sale.product_id = data.get('product_id', sale.product_id)
         sale.quantity = data.get('quantity', sale.quantity)
         sale.price = data.get('price', sale.price)
+        sale.payment_method = data.get('payment_method', sale.payment_method)
         sale.total = sale.quantity * sale.price
         
         # Ajustar inventario del producto actualizado
@@ -262,9 +281,15 @@ def income():
     query = Income.query
     
     if date_from:
-        query = query.filter(Income.date >= datetime.fromisoformat(date_from))
+        try:
+            query = query.filter(Income.date >= datetime.fromisoformat(date_from.replace('Z', '+00:00')))
+        except (ValueError, AttributeError):
+            pass
     if date_to:
-        query = query.filter(Income.date <= datetime.fromisoformat(date_to))
+        try:
+            query = query.filter(Income.date <= datetime.fromisoformat(date_to.replace('Z', '+00:00')))
+        except (ValueError, AttributeError):
+            pass
     
     income_list = query.all()
     return jsonify([i.to_dict() for i in income_list])
@@ -335,9 +360,15 @@ def expenses():
     query = Expense.query
     
     if date_from:
-        query = query.filter(Expense.date >= datetime.fromisoformat(date_from))
+        try:
+            query = query.filter(Expense.date >= datetime.fromisoformat(date_from.replace('Z', '+00:00')))
+        except (ValueError, AttributeError):
+            pass
     if date_to:
-        query = query.filter(Expense.date <= datetime.fromisoformat(date_to))
+        try:
+            query = query.filter(Expense.date <= datetime.fromisoformat(date_to.replace('Z', '+00:00')))
+        except (ValueError, AttributeError):
+            pass
     
     expenses_list = query.all()
     return jsonify([e.to_dict() for e in expenses_list])
@@ -405,7 +436,7 @@ def sales_by_vendor():
         Vendor.name,
         func.sum(Sale.total),
         func.count(Sale.id)
-    ).join(Sale).group_by(Vendor.id)
+    ).outerjoin(Sale).group_by(Vendor.id)
     
     if date_from:
         query = query.filter(Sale.date >= datetime.fromisoformat(date_from))
@@ -457,10 +488,28 @@ def daily_billing():
     
     total_sales = sum(s.total for s in sales)
     total_expenses = sum(e.amount for e in expenses)
-    total_costs = sum(
-        s.quantity * (Inventory.query.filter_by(product_id=s.product_id).first().cost or 0)
-        for s in sales
-    )
+    
+    total_costs = 0
+    payment_stats = {'Efectivo': 0, 'Otros': 0}
+    vendor_counts = {}
+
+    for s in sales:
+        # Calcular costos
+        inv = Inventory.query.filter_by(product_id=s.product_id).first()
+        total_costs += s.quantity * (inv.cost or 0) if inv else 0
+        
+        # Estadísticas de pago
+        method = s.payment_method if hasattr(s, 'payment_method') else 'Efectivo'
+        if method == 'Efectivo':
+            payment_stats['Efectivo'] += 1
+        else:
+            payment_stats['Otros'] += 1
+            
+        # Vendedor con más ventas
+        vendor_name = s.vendor.name
+        vendor_counts[vendor_name] = vendor_counts.get(vendor_name, 0) + 1
+
+    top_vendor = max(vendor_counts, key=vendor_counts.get) if vendor_counts else "N/A"
     
     net_profit = total_sales - total_costs - total_expenses
     
@@ -470,5 +519,52 @@ def daily_billing():
         'total_costs': total_costs,
         'net_profit': net_profit,
         'sales_count': len(sales),
+        'top_vendor': top_vendor,
+        'payment_stats': payment_stats,
         'sales': [s.to_dict() for s in sales]
     })
+
+@bp.route('/reports/arca-sales-csv')
+def arca_sales_csv():
+    """Genera un reporte CSV de ventas para ARCA (o similar)"""
+    date_from_str = request.args.get('from')
+    date_to_str = request.args.get('to')
+
+    query = Sale.query
+
+    if date_from_str:
+        try:
+            from_dt = datetime.fromisoformat(date_from_str.replace('Z', '+00:00'))
+            query = query.filter(Sale.date >= from_dt)
+        except (ValueError, AttributeError):
+            pass
+    
+    if date_to_str:
+        try:
+            to_dt = datetime.fromisoformat(date_to_str.replace('Z', '+00:00'))
+            query = query.filter(Sale.date <= to_dt)
+        except (ValueError, AttributeError):
+            pass
+
+    sales = query.order_by(Sale.date).all()
+
+    # Encabezados del CSV
+    header = "Fecha,Hora,Vendedor,Codigo_Producto,Nombre_Producto,Cantidad,Precio_Unitario,Total_Venta,Metodo_Pago\n"
+    csv_lines = [header]
+
+    for sale in sales:
+        date_str = sale.date.strftime('%Y-%m-%d')
+        time_str = sale.date.strftime('%H:%M:%S')
+        vendor_name = sale.vendor.name if sale.vendor else 'Desconocido'
+        product_code = sale.product.code if sale.product else 'N/A'
+        product_name = sale.product.name if sale.product else 'Producto Eliminado'
+        
+        line = f"{date_str},{time_str},{vendor_name},{product_code},{product_name},{sale.quantity},{sale.price:.2f},{sale.total:.2f},{sale.payment_method}\n"
+        csv_lines.append(line)
+
+    csv_data = "".join(csv_lines)
+
+    response = make_response(csv_data)
+    response.headers["Content-Disposition"] = f"attachment; filename=reporte_ventas_ARCA_{date_from_str or 'inicio'}_{date_to_str or 'fin'}.csv"
+    response.headers["Content-type"] = "text/csv"
+    return response

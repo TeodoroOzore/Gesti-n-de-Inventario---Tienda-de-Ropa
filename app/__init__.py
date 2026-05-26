@@ -6,14 +6,15 @@ import sys
 db = SQLAlchemy()
 
 def create_app():
-    app = Flask(__name__)
-    
-    # Configuración del directorio de datos
     if getattr(sys, 'frozen', False):
-        # Cuando se ejecuta desde un ejecutable PyInstaller
+        # Si es un .exe, los archivos internos (templates/static) están en _MEIPASS
+        template_folder = os.path.join(sys._MEIPASS, 'app', 'templates')
+        static_folder = os.path.join(sys._MEIPASS, 'app', 'static')
+        app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+        # La base de datos debe estar al lado del .exe para no borrarse
         root_dir = os.path.dirname(sys.executable)
     else:
-        # Cuando se ejecuta desde el código fuente
+        app = Flask(__name__)
         root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     data_dir = os.path.join(root_dir, 'data')

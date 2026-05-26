@@ -17,26 +17,34 @@ async function loadDashboardStats() {
         const stats = await apiCall.get('/dashboard-stats');
         
         // Actualizar elementos del dashboard
-        document.getElementById('sales-today').textContent = utils.formatMoney(stats.sales_today);
+        // Limpiar fondos de tarjetas y forzar texto oscuro para asegurar visibilidad de colores rojo/verde
+        ['sales-today', 'inventory-cost', 'profitability', 'profit', 'total-sales', 'total-costs', 'total-expenses', 'total-items'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.closest('.card')) {
+                const card = el.closest('.card');
+                // Removemos cualquier clase de fondo o texto blanco de Bootstrap
+                card.classList.remove('bg-success', 'bg-danger', 'bg-primary', 'bg-info', 'bg-warning', 'bg-dark', 'text-white');
+                card.classList.add('bg-white', 'text-dark', 'shadow-sm', 'border-0');
+                
+                // También limpiamos clases en etiquetas secundarias (títulos) dentro de la tarjeta
+                card.querySelectorAll('.card-title, .text-white-50, h6').forEach(label => {
+                    label.classList.remove('text-white', 'text-white-50');
+                    label.classList.add('text-muted');
+                });
+            }
+        });
+
+        document.getElementById('sales-today').innerHTML = utils.formatMoney(stats.sales_today, 'gain');
         document.getElementById('total-items').textContent = stats.total_items || 0;
-        document.getElementById('inventory-cost').textContent = utils.formatMoney(stats.total_inventory_cost);
-        document.getElementById('profitability').textContent = stats.profitability + '%';
+        document.getElementById('inventory-cost').innerHTML = utils.formatMoney(stats.total_inventory_cost, 'loss');
+        document.getElementById('profitability').innerHTML = `<span class="${stats.profitability >= 0 ? 'text-success' : 'text-danger'}">${stats.profitability}%</span>`;
         
         // Resumen financiero
-        document.getElementById('total-sales').textContent = utils.formatMoney(stats.total_sales);
-        document.getElementById('total-costs').textContent = utils.formatMoney(stats.total_costs);
-        document.getElementById('total-expenses').textContent = utils.formatMoney(stats.total_expenses);
-        document.getElementById('profit').textContent = utils.formatMoney(stats.profit);
+        document.getElementById('total-sales').innerHTML = utils.formatMoney(stats.total_sales, 'neutral');
+        document.getElementById('total-costs').innerHTML = utils.formatMoney(stats.total_costs, 'neutral');
+        document.getElementById('total-expenses').innerHTML = utils.formatMoney(stats.total_expenses, 'neutral');
+        document.getElementById('profit').innerHTML = utils.formatMoney(stats.profit, 'auto');
         
-        // Cambiar color de rentabilidad según valor
-        const profitabilityEl = document.getElementById('profitability');
-        if (stats.profitability >= 20) {
-            profitabilityEl.classList.add('text-success');
-        } else if (stats.profitability >= 10) {
-            profitabilityEl.classList.add('text-warning');
-        } else {
-            profitabilityEl.classList.add('text-danger');
-        }
     } catch (error) {
         console.error('Error al cargar estadísticas:', error);
         utils.showNotification('Error al cargar estadísticas', 'error');
@@ -85,7 +93,7 @@ async function loadVendorSales() {
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
-                                    return utils.formatMoney(value);
+                                    return utils.formatMoney(value, 'neutral', false);
                                 }
                             }
                         }

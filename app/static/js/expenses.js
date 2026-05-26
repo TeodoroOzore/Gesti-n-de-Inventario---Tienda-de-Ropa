@@ -1,5 +1,5 @@
 /**
- * expenses.js - Lógica de Gestión de Egresos
+ * expenses.js - Lógica de Gestión de Costos
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -8,30 +8,32 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * Carga registro de egresos
+ * Carga registro de costos
  */
 async function loadExpenses() {
     try {
         const expenses = await apiCall.get('/expenses');
-        const tbody = document.querySelector('#expenseTable tbody');
+        const tbody = document.getElementById('expenseTable');
         let totalExpenses = 0;
+        let html = '';
 
         tbody.innerHTML = '';
         
+
         if (expenses.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay egresos registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay costos registrados</td></tr>';
             document.getElementById('totalExpenses').textContent = '$0.00';
             return;
         }
 
         expenses.forEach(expense => {
             totalExpenses += expense.amount;
-            const row = `
+            html += `
                 <tr>
                     <td>${utils.formatDate(expense.date)}</td>
                     <td>${expense.description}</td>
                     <td><span class="badge bg-secondary">${expense.category}</span></td>
-                    <td><strong>${utils.formatMoney(expense.amount)}</strong></td>
+                    <td><strong>${utils.formatMoney(expense.amount, 'loss')}</strong></td>
                     <td>${expense.notes || '-'}</td>
                     <td>
                         <button class="btn btn-sm btn-danger" onclick="deleteExpense(${expense.id})">
@@ -40,12 +42,12 @@ async function loadExpenses() {
                     </td>
                 </tr>
             `;
-            tbody.innerHTML += row;
         });
 
-        document.getElementById('totalExpenses').textContent = utils.formatMoney(totalExpenses);
+        tbody.innerHTML = html;
+        document.getElementById('totalExpenses').innerHTML = utils.formatMoney(totalExpenses, 'loss');
     } catch (error) {
-        console.error('Error al cargar egresos:', error);
+        console.error('Error al cargar costos:', error);
     }
 }
 
@@ -60,7 +62,7 @@ function setupFormListeners() {
 }
 
 /**
- * Guarda un nuevo egreso
+ * Guarda un nuevo costo
  */
 async function saveExpense() {
     try {
@@ -83,27 +85,27 @@ async function saveExpense() {
 
         await apiCall.post('/expenses', data);
         
-        utils.showNotification('Egreso registrado correctamente', 'success');
+        utils.showNotification('Costo registrado correctamente', 'success');
         document.getElementById('expenseForm').reset();
         loadExpenses();
     } catch (error) {
-        console.error('Error al guardar egreso:', error);
-        utils.showNotification('Error al registrar el egreso', 'error');
+        console.error('Error al guardar costo:', error);
+        utils.showNotification('Error al registrar el costo', 'error');
     }
 }
 
 /**
- * Elimina un egreso
+ * Elimina un costo
  */
 async function deleteExpense(expenseId) {
-    if (!confirm('¿Estás seguro de que deseas eliminar este egreso?')) return;
+    if (!confirm('¿Estás seguro de que deseas eliminar este costo?')) return;
     
     try {
         await apiCall.delete(`/expenses/${expenseId}`);
-        utils.showNotification('Egreso eliminado', 'success');
+        utils.showNotification('Costo eliminado', 'success');
         loadExpenses();
     } catch (error) {
-        console.error('Error al eliminar egreso:', error);
-        utils.showNotification('Error al eliminar el egreso', 'error');
+        console.error('Error al eliminar costo:', error);
+        utils.showNotification('Error al eliminar el costo', 'error');
     }
 }

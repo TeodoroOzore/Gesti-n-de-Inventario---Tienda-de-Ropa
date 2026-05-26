@@ -22,7 +22,7 @@ async function loadProducts() {
         if (!Array.isArray(products) || products.length === 0) {
             select.innerHTML = '<option value="">No hay productos creados. Ve a Configuración.</option>';
             select.disabled = true;
-            return;
+            // Continue to allow form reset, but product selection will be disabled
         }
 
         select.disabled = false;
@@ -48,26 +48,26 @@ async function loadIncomes() {
         const incomes = await apiCall.get('/income');
         const tbody = document.getElementById('incomeTable');
         let totalInvested = 0;
+        let html = '';
 
         tbody.innerHTML = '';
 
         if (!Array.isArray(incomes) || incomes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay ingresos registrados</td></tr>';
-            document.getElementById('totalInvested').textContent = '$0.00';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay ingresos registrados</td></tr>';
+            document.getElementById('totalInvested').innerHTML = utils.formatMoney(0, 'loss');
             return;
         }
 
         window.incomes = incomes;
         incomes.forEach(income => {
             totalInvested += income.total_cost;
-            const row = `
+            html += `
                 <tr id="incomeRow-${income.id}">
                     <td>${utils.formatDate(income.date)}</td>
                     <td>${income.product.name}</td>
-                    <td>${income.quantity}</td>
-                    <td>${utils.formatMoney(income.cost)}</td>
-                    <td>${utils.formatMoney(income.price)}</td>
-                    <td><strong>${utils.formatMoney(income.total_cost)}</strong></td>
+                    <td>${income.quantity}</td> <!-- Quantity is a neutral number, not currency -->
+                    <td>${utils.formatMoney(income.cost, 'neutral')}</td>
+                    <td><strong>${utils.formatMoney(income.total_cost, 'loss')}</strong></td>
                     <td>${income.provider || '-'}</td>
                     <td>
                         <button class="btn btn-sm btn-primary me-2" onclick="editIncome(${income.id})">
@@ -79,10 +79,9 @@ async function loadIncomes() {
                     </td>
                 </tr>
             `;
-            tbody.innerHTML += row;
         });
-
-        document.getElementById('totalInvested').textContent = utils.formatMoney(totalInvested);
+        tbody.innerHTML = html;
+        document.getElementById('totalInvested').innerHTML = utils.formatMoney(totalInvested, 'loss');
     } catch (error) {
         console.error('Error al cargar ingresos:', error);
         utils.showNotification('Error al cargar ingresos. Intenta nuevamente.', 'error');

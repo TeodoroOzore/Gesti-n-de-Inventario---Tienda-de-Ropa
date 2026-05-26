@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadReports();
     setupFilterListener();
+    setupDownloadListeners();
 });
 
 /**
@@ -18,6 +19,13 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 function setupFilterListener() {
     document.getElementById('filterBtn').addEventListener('click', loadReports);
+}
+
+/**
+ * Configura listener del botón de descarga de ARCA
+ */
+function setupDownloadListeners() {
+    document.getElementById('downloadArcaReportBtn').addEventListener('click', downloadArcaReport);
 }
 
 /**
@@ -39,17 +47,26 @@ async function loadReports() {
         // Cargar estadísticas generales
         const stats = await apiCall.get('/dashboard-stats');
         
-        document.getElementById('periodSales').textContent = utils.formatMoney(stats.total_sales);
-        document.getElementById('periodCosts').textContent = utils.formatMoney(stats.total_costs);
-        document.getElementById('periodExpenses').textContent = utils.formatMoney(stats.total_expenses);
-        document.getElementById('periodProfit').textContent = utils.formatMoney(stats.profit);
+        document.getElementById('periodSales').innerHTML = utils.formatMoney(stats.total_sales, 'gain');
+        document.getElementById('periodCosts').innerHTML = utils.formatMoney(stats.total_costs, 'loss');
+        document.getElementById('periodExpenses').innerHTML = utils.formatMoney(stats.total_expenses, 'loss');
+        document.getElementById('periodProfit').innerHTML = utils.formatMoney(stats.profit, 'auto');
+
+        // Cargar Resumen Diario (Nuevo)
+        const dailyData = await apiCall.get('/daily-billing');
+        if (document.getElementById('dailySaleCount')) {
+            document.getElementById('dailySaleCount').textContent = dailyData.sales_count;
+            document.getElementById('topVendorDay').textContent = dailyData.top_vendor;
+            document.getElementById('cashSales').textContent = dailyData.payment_stats.Efectivo;
+            document.getElementById('otherSales').textContent = dailyData.payment_stats.Otros;
+        }
 
         // Cargar ventas por vendedor
         const vendorSales = await apiCall.get(`/sales-by-vendor?from=${fromDate}&to=${toDate}`);
         loadTopVendorsChart(vendorSales);
 
         // Cargar estado de inventario (productos más vendidos simulado)
-        loadTopProducts();
+        loadTopProducts(fromDate, toDate);
 
     } catch (error) {
         console.error('Error al cargar reportes:', error);
@@ -105,9 +122,15 @@ function loadTopVendorsChart(data) {
 /**
  * Carga tabla de productos más vendidos
  */
-async function loadTopProducts() {
+async function loadTopProducts(fromDate = null, toDate = null) {
     try {
-        const sales = await apiCall.get('/sales');
+        let url = '/sales';
+        if (fromDate && toDate) {
+            url += `?from=${fromDate}&to=${toDate}`;
+        }
+        const sales = await apiCall.get(url);
+        const currentInventory = await apiCall.get('/inventory'); // Fetch current inventory for costs
+        const inventoryMap = new Map(currentInventory.map(item => [item.product.id, item]));
         
         // Agrupar y sumar ventas por producto
         const productSales = {};
@@ -124,7 +147,12 @@ async function loadTopProducts() {
             }
             productSales[productId].quantity += sale.quantity;
             productSales[productId].revenue += sale.total;
-            productSales[productId].cost += sale.quantity * 0; // Simplificado
+            
+            // Para precisión histórica, el costo debería estar en el registro de venta.
+            // Aquí usamos el costo actual del inventario como aproximación.
+            const inventoryItem = inventoryMap.get(productId);
+            const unitCost = inventoryItem ? inventoryItem.cost : 0;
+            productSales[productId].cost += sale.quantity * unitCost;
         });
 
         const sortedProducts = Object.values(productSales)
@@ -133,6 +161,7 @@ async function loadTopProducts() {
 
         const tbody = document.querySelector('#topProductsTable tbody');
         tbody.innerHTML = '';
+        let html = '';
 
         if (sortedProducts.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay datos</td></tr>';
@@ -143,20 +172,48 @@ async function loadTopProducts() {
             const profit = item.revenue - item.cost;
             const margin = item.revenue > 0 ? ((profit / item.revenue) * 100).toFixed(2) : 0;
             
-            const row = `
+            html += `
                 <tr>
                     <td><strong>${item.product.name}</strong></td>
                     <td>${item.quantity}</td>
-                    <td>${utils.formatMoney(item.revenue)}</td>
-                    <td>${utils.formatMoney(item.cost)}</td>
-                    <td><strong>${utils.formatMoney(profit)}</strong></td>
-                    <td><span class="badge bg-success">${margin}%</span></td>
+                    <td>${utils.formatMoney(item.revenue, 'gain')}</td>
+                    <td>${utils.formatMoney(item.cost, 'loss')}</td>
+                    <td><strong>${utils.formatMoney(profit, 'auto')}</strong></td>
+                    <td><span class="badge ${margin >= 0 ? 'bg-success' : 'bg-danger'}">${margin}%</span></td>
                 </tr>
             `;
-            tbody.innerHTML += row;
         });
+        tbody.innerHTML = html;
 
     } catch (error) {
         console.error('Error al cargar productos más vendidos:', error);
+    }
+}
+
+/**
+ * Descarga el reporte de ventas para ARCA en formato CSV
+ */
+async function downloadArcaReport() {
+    try {
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+
+        if (!dateFrom || !dateTo) {
+            utils.showNotification('Por favor selecciona ambas fechas para el reporte ARCA', 'warning');
+            return;
+        }
+
+        const fromDate = new Date(dateFrom).toISOString();
+        const toDate = new Date(dateTo).toISOString();
+
+        // La API ya devuelve el CSV directamente, solo necesitamos abrirlo o descargarlo
+        const url = `${API_BASE}/reports/arca-sales-csv?from=${fromDate}&to=${toDate}`;
+        window.open(url, '_blank'); // Abre en una nueva pestaña para descargar
+        
+        utils.showNotification('Reporte ARCA generado y descargado.', 'success');
+
+    } catch (error) {
+        console.error('Error al descargar reporte ARCA:', error);
+        utils.showNotification('Error al descargar el reporte ARCA', 'error');
     }
 }

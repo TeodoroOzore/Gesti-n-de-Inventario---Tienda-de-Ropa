@@ -15,9 +15,10 @@ async function loadInventory() {
     try {
         const inventory = await apiCall.get('/inventory');
         const tbody = document.querySelector('#inventoryTable');
+        let html = '';
 
         tbody.innerHTML = '';
-        
+
         if (!Array.isArray(inventory) || inventory.length === 0) {
             tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox"></i> No hay productos en inventario</td></tr>';
             return;
@@ -25,7 +26,7 @@ async function loadInventory() {
 
         inventory.forEach(item => {
             const product = item.product;
-            const row = `
+            html += `
                 <tr>
                     <td><strong>${product.code}</strong></td>
                     <td>${product.name}</td>
@@ -37,8 +38,8 @@ async function loadInventory() {
                             ${item.quantity}
                         </span>
                     </td>
-                    <td>${utils.formatMoney(item.cost)}</td>
-                    <td>${utils.formatMoney(item.price || item.cost)}</td>
+                    <td>${utils.formatMoney(item.cost, 'neutral')}</td>
+                    <td>${utils.formatMoney(item.price || item.cost, 'neutral')}</td>
                     <td><strong>${utils.formatMoney(item.total_value)}</strong></td>
                     <td>
                         <button class="btn btn-sm btn-warning" onclick="editInventory(${product.id})">
@@ -47,8 +48,9 @@ async function loadInventory() {
                     </td>
                 </tr>
             `;
-            tbody.innerHTML += row;
         });
+
+        tbody.innerHTML = html;
     } catch (error) {
         console.error('Error al cargar inventario:', error);
     }

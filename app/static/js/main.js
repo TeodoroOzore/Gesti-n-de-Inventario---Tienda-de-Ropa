@@ -8,13 +8,27 @@ const API_BASE = '/api';
 // Utilidades
 const utils = {
     /**
-     * Formatea dinero
+     * Formatea dinero con colores o texto plano según el tipo
+     * type: 'gain' (verde), 'loss' (rojo), 'neutral' (negro), 'auto' (según valor)
+     * asHtml: si es true devuelve span con color, si es false devuelve solo texto
      */
-    formatMoney: function(amount) {
-        return new Intl.NumberFormat('es-AR', {
+    formatMoney: function(amount, type = 'neutral', asHtml = true) {
+        const formatted = new Intl.NumberFormat('es-AR', {
             style: 'currency',
             currency: 'ARS'
         }).format(amount || 0);
+
+        if (!asHtml) return formatted;
+
+        let colorClass = 'text-dark';
+        if (type === 'gain') colorClass = 'text-success';
+        if (type === 'loss') colorClass = 'text-danger';
+        if (type === 'auto') {
+            if (amount > 0) colorClass = 'text-success';
+            else if (amount < 0) colorClass = 'text-danger';
+        }
+
+        return `<span class="${colorClass} fw-bold">${formatted}</span>`;
     },
 
     /**

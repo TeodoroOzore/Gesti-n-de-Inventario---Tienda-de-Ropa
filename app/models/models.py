@@ -74,6 +74,7 @@ class Sale(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     total = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(50), default='Efectivo')
     date = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self):
@@ -84,6 +85,7 @@ class Sale(db.Model):
             'quantity': self.quantity,
             'price': self.price,
             'total': self.total,
+            'payment_method': self.payment_method,
             'date': self.date.isoformat()
         }
 
