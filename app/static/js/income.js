@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * income.js - Lógica de Ingresos de Mercadería
  */
 
@@ -116,7 +116,8 @@ function calculateTotalCost() {
     const cost = parseFloat(document.getElementById('costInput').value) || 0;
     const total = quantity * cost;
 
-    document.getElementById('totalCost').textContent = utils.formatMoney(total);
+    // Usamos innerHTML porque formatMoney devuelve un span con clases de CSS
+    document.getElementById('totalCost').innerHTML = utils.formatMoney(total, 'loss');
 }
 
 /**
@@ -190,6 +191,9 @@ function setIncomeEditMode(income) {
     document.getElementById('submitIncomeBtn').innerHTML = '<i class="bi bi-save"></i> Guardar Cambios';
     document.getElementById('cancelIncomeEditBtn').classList.remove('d-none');
     document.querySelector('.card-header.bg-success h5').textContent = 'Editar Ingreso de Stock';
+    
+    // Forzamos el recálculo visual del costo total al cargar los datos del registro
+    calculateTotalCost();
 }
 
 function editIncome(incomeId) {

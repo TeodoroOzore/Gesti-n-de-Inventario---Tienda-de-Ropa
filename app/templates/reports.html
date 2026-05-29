@@ -47,13 +47,40 @@
     </div>
 </div>
 
+<!-- Resumen del Día -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">Resumen de Facturación de Hoy</h5>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-3">
+                <p class="text-muted mb-1">Ventas Realizadas</p>
+                <h3 id="billingSalesCount">0</h3>
+            </div>
+            <div class="col-md-3">
+                <p class="text-muted mb-1">Vendedor Estrella</p>
+                <h3 id="billingTopVendor">N/A</h3>
+            </div>
+            <div class="col-md-3">
+                <p class="text-muted mb-1">Pagos Efectivo</p>
+                <h3 class="text-success" id="billingCashPayments">0</h3>
+            </div>
+            <div class="col-md-3">
+                <p class="text-muted mb-1">Otros Medios</p>
+                <h3 class="text-primary" id="billingOtherPayments">0</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Resumen de Período -->
 <div class="row mb-4">
     <div class="col-md-6 col-lg-3 mb-3">
         <div class="card report-card">
             <div class="card-body">
                 <p class="text-muted small mb-1">TOTAL VENTAS</p>
-                <p class="h4 mb-0" id="periodSales">$0.00</p>
+                <p class="h4 mb-0" id="billingTotalSales">$0.00</p>
             </div>
         </div>
     </div>
@@ -61,7 +88,7 @@
         <div class="card report-card border-top-success">
             <div class="card-body">
                 <p class="text-muted small mb-1">COSTO DE VENTAS</p>
-                <p class="h4 mb-0 text-success" id="periodCosts">$0.00</p>
+                <p class="h4 mb-0 text-success" id="billingTotalCosts">$0.00</p>
             </div>
         </div>
     </div>
@@ -69,7 +96,7 @@
         <div class="card report-card border-top-warning">
             <div class="card-body">
                 <p class="text-muted small mb-1">EGRESOS</p>
-                <p class="h4 mb-0 text-warning" id="periodExpenses">$0.00</p>
+                <p class="h4 mb-0 text-warning" id="billingTotalExpenses">$0.00</p>
             </div>
         </div>
     </div>
@@ -77,7 +104,7 @@
         <div class="card report-card border-top-danger">
             <div class="card-body">
                 <p class="text-muted small mb-1">GANANCIA NETA</p>
-                <p class="h4 mb-0 text-danger" id="periodProfit">$0.00</p>
+                <p class="h4 mb-0 text-danger" id="billingNetProfit">$0.00</p>
             </div>
         </div>
     </div>
@@ -92,7 +119,7 @@
             </div>
             <div class="card-body">
                 <div class="chart-container">
-                    <canvas id="dailyChart"></canvas>
+                    <canvas id="dailyPerformanceChart"></canvas>
                 </div>
             </div>
         </div>

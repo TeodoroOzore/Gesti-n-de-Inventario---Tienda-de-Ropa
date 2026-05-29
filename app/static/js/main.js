@@ -67,20 +67,49 @@ const utils = {
      * Muestra notificación
      */
     showNotification: function(message, type = 'success') {
-        const alertClass = type === 'error' ? 'danger' : type;
-        const alertHtml = `
-            <div class="alert alert-${alertClass} alert-dismissible fade show" role="alert">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        // 1. Asegurar que exista el contenedor de notificaciones en el DOM
+        let container = document.getElementById('toast-container-global');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container-global';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.style.zIndex = '1080'; 
+            document.body.appendChild(container);
+        }
+
+        // 2. Mapeo de estilos y colores
+        const bgClass = type === 'error' || type === 'danger' ? 'bg-danger' : 
+                        type === 'warning' ? 'bg-warning text-dark' : 
+                        'bg-success';
+        const textClass = type === 'warning' ? '' : 'text-white';
+        const icon = type === 'error' || type === 'danger' ? 'bi-exclamation-octagon' :
+                     type === 'warning' ? 'bi-exclamation-triangle' :
+                     'bi-check-circle';
+
+        // 3. Crear el HTML del Toast
+        const toastId = 'toast-' + Date.now();
+        const btnCloseClass = type === 'warning' ? '' : 'btn-close-white';
+        
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center ${bgClass} ${textClass} border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-center">
+                        <i class="bi ${icon} fs-5 me-2"></i>
+                        <span>${message}</span>
+                    </div>
+                    <button type="button" class="btn-close ${btnCloseClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+                </div>
             </div>
         `;
-        
-        const container = document.querySelector('main');
-        if (container) {
-            const alert = document.createElement('div');
-            alert.innerHTML = alertHtml;
-            container.insertBefore(alert.firstElementChild, container.firstElementChild);
-        }
+
+        // 4. Insertar y disparar con la API de Bootstrap 5
+        container.insertAdjacentHTML('beforeend', toastHtml);
+        const toastElement = document.getElementById(toastId);
+        const bsToast = new bootstrap.Toast(toastElement, { delay: 4000 });
+        bsToast.show();
+
+        // 5. Limpieza del DOM al terminar la animación
+        toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
     },
 
     /**
@@ -89,6 +118,36 @@ const utils = {
     calculatePercentage: function(value, total) {
         if (total === 0) return 0;
         return ((value / total) * 100).toFixed(2);
+    },
+
+    /**
+     * Obtiene los datos de configuración del negocio
+     */
+    getBusinessInfo: async function() {
+        try {
+            return await apiCall.get('/business-info');
+        } catch (error) {
+            return {
+                name: 'Mi Tienda de Ropa',
+                cuit: '',
+                address: '',
+                tax_condition: 'Monotributista'
+            };
+        }
+    },
+
+    /**
+     * Guarda los datos de configuración del negocio
+     */
+    saveBusinessInfo: async function(data) {
+        try {
+            const response = await apiCall.post('/business-info', data);
+            utils.showNotification('Datos del negocio guardados correctamente', 'success');
+            return response;
+        } catch (error) {
+            utils.showNotification('Error al guardar los datos del negocio', 'error');
+            throw error;
+        }
     }
 };
 
@@ -186,4 +245,32 @@ document.addEventListener('DOMContentLoaded', function() {
     popoverTriggerList.map(function (popoverTriggerEl) {
         return new bootstrap.Popover(popoverTriggerEl);
     });
+
+    // Inicialización de la configuración del negocio (si existe el formulario)
+    const businessForm = document.getElementById('businessInfoForm');
+    if (businessForm) {
+        setupBusinessInfo();
+    }
 });
+
+/**
+ * Configura y carga el formulario de información del negocio
+ */
+async function setupBusinessInfo() {
+    const info = await utils.getBusinessInfo();
+    
+    document.getElementById('businessName').value = info.name || '';
+    document.getElementById('businessCUIT').value = info.cuit || '';
+    document.getElementById('businessAddress').value = info.address || '';
+    document.getElementById('taxCondition').value = info.tax_condition || 'Monotributista';
+
+    document.getElementById('businessInfoForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await utils.saveBusinessInfo({
+            name: document.getElementById('businessName').value,
+            cuit: document.getElementById('businessCUIT').value,
+            address: document.getElementById('businessAddress').value,
+            tax_condition: document.getElementById('taxCondition').value
+        });
+    });
+}

@@ -208,7 +208,7 @@ async function loadProductPrice() {
         
         if (inventoryItem) {
             const salePrice = inventoryItem.price || inventoryItem.cost;
-            priceDisplay.value = utils.formatMoney(salePrice);
+            priceDisplay.value = utils.formatMoney(salePrice, 'neutral', false);
             document.getElementById('priceValue').value = salePrice;
             
             // Validar disponibilidad de stock
@@ -236,8 +236,8 @@ function calculateLineTotal() {
     const price = parseFloat(document.getElementById('priceValue').value) || 0;
     const total = quantity * price;
     
-    document.getElementById('subtotal').textContent = utils.formatMoney(total);
-    document.getElementById('totalPrice').textContent = utils.formatMoney(total);
+    document.getElementById('subtotal').innerHTML = utils.formatMoney(total, 'neutral');
+    document.getElementById('totalPrice').innerHTML = utils.formatMoney(total, 'gain');
 }
 
 /**
@@ -297,8 +297,8 @@ function updateCartDisplay() {
             registerBtn.disabled = true;
         }
         
-        document.getElementById('subtotal').textContent = '$0.00';
-        document.getElementById('totalPrice').textContent = '$0.00';
+        document.getElementById('subtotal').innerHTML = utils.formatMoney(0);
+        document.getElementById('totalPrice').innerHTML = utils.formatMoney(0);
         return;
     }
 
@@ -330,8 +330,8 @@ function updateCartDisplay() {
     });
 
     cartContainer.innerHTML = cartHTML;
-    document.getElementById('subtotal').textContent = utils.formatMoney(cartTotal);
-    document.getElementById('totalPrice').textContent = utils.formatMoney(cartTotal);
+    document.getElementById('subtotal').innerHTML = utils.formatMoney(cartTotal, 'neutral');
+    document.getElementById('totalPrice').innerHTML = utils.formatMoney(cartTotal, 'gain');
 }
 
 /**

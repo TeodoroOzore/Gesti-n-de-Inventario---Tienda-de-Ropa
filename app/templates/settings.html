@@ -41,6 +41,11 @@
             <i class="bi bi-tag"></i> Productos
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="businessTab" data-bs-toggle="tab" data-bs-target="#businessPanel" type="button" role="tab">
+            <i class="bi bi-building"></i> Negocio
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content">
@@ -161,6 +166,47 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del Negocio -->
+    <div class="tab-pane fade" id="businessPanel" role="tabpanel">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white d-flex align-items-center">
+                <h5 class="mb-0"><i class="bi bi-building-fill-check me-2"></i> Información Fiscal del Negocio</h5>
+            </div>
+            <div class="card-body">
+                <form id="businessInfoForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Razón Social / Nombre Fantasía</label>
+                            <input type="text" class="form-control" id="businessName" placeholder="Ej: Mi Tienda S.R.L." required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">CUIT</label>
+                            <input type="text" class="form-control" id="businessCUIT" placeholder="00-00000000-0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Dirección Comercial</label>
+                            <input type="text" class="form-control" id="businessAddress" placeholder="Ej: Av. Principal 123, CABA">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Condición frente al IVA</label>
+                            <select class="form-select" id="taxCondition">
+                                <option value="Monotributista">Monotributista</option>
+                                <option value="Responsable Inscripto">Responsable Inscripto</option>
+                                <option value="Exento">Exento</option>
+                                <option value="Consumidor Final">Consumidor Final</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-end border-top pt-3">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save me-1"></i> Guardar Cambios Fiscales
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

@@ -15,6 +15,8 @@ python -m PyInstaller --noconfirm --onefile --windowed --clean ^
     --add-data "app/templates;app/templates" ^
     --add-data "app/static;app/static" ^
     --collect-all flask ^
+    --collect-all flask_sqlalchemy ^
+    --collect-all sqlalchemy ^
     --name "GestionTiendaRopa" run.py
 
 if errorlevel 1 goto error

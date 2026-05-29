@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadReports();
     setupFilterListener();
-    setupDownloadListeners();
+    setupAccountingListeners();
+    checkMonotributoStatus();
 });
 
 /**
@@ -22,10 +23,10 @@ function setupFilterListener() {
 }
 
 /**
- * Configura listener del botón de descarga de ARCA
+ * Configura listeners para reportes contables
  */
-function setupDownloadListeners() {
-    document.getElementById('downloadArcaReportBtn').addEventListener('click', downloadArcaReport);
+function setupAccountingListeners() {
+    document.getElementById('downloadArcaReportBtn').addEventListener('click', downloadAccountingPackage);
 }
 
 /**
@@ -33,40 +34,36 @@ function setupDownloadListeners() {
  */
 async function loadReports() {
     try {
-        const dateFrom = document.getElementById('dateFrom').value;
-        const dateTo = document.getElementById('dateTo').value;
+        const fromDateInput = document.getElementById('dateFrom').value;
+        const toDateInput = document.getElementById('dateTo').value;
 
-        if (!dateFrom || !dateTo) {
+        if (!fromDateInput || !toDateInput) {
             utils.showNotification('Por favor selecciona ambas fechas', 'warning');
             return;
         }
 
-        const fromDate = new Date(dateFrom).toISOString();
-        const toDate = new Date(dateTo).toISOString();
+        // Agregamos la hora para asegurar que el filtro sea inclusivo (todo el día final)
+        const fromDate = fromDateInput;
+        const toDate = toDateInput + ' 23:59:59';
 
-        // Cargar estadísticas generales
-        const stats = await apiCall.get('/dashboard-stats');
-        
-        document.getElementById('periodSales').innerHTML = utils.formatMoney(stats.total_sales, 'gain');
-        document.getElementById('periodCosts').innerHTML = utils.formatMoney(stats.total_costs, 'loss');
-        document.getElementById('periodExpenses').innerHTML = utils.formatMoney(stats.total_expenses, 'loss');
-        document.getElementById('periodProfit').innerHTML = utils.formatMoney(stats.profit, 'auto');
+        // 1. Cargar estadísticas generales filtradas por el rango de fechas
+        const stats = await apiCall.get(`/dashboard-stats?from=${fromDate}&to=${toDate}`);
 
-        // Cargar Resumen Diario (Nuevo)
-        const dailyData = await apiCall.get('/daily-billing');
-        if (document.getElementById('dailySaleCount')) {
-            document.getElementById('dailySaleCount').textContent = dailyData.sales_count;
-            document.getElementById('topVendorDay').textContent = dailyData.top_vendor;
-            document.getElementById('cashSales').textContent = dailyData.payment_stats.Efectivo;
-            document.getElementById('otherSales').textContent = dailyData.payment_stats.Otros;
-        }
+        // Usamos || 0 para evitar errores si el backend devuelve nulos
+        if (document.getElementById('billingTotalSales')) document.getElementById('billingTotalSales').innerHTML = utils.formatMoney(stats.total_sales || 0, 'gain');
+        if (document.getElementById('billingTotalCosts')) document.getElementById('billingTotalCosts').innerHTML = utils.formatMoney(stats.total_costs || 0, 'loss');
+        if (document.getElementById('billingTotalExpenses')) document.getElementById('billingTotalExpenses').innerHTML = utils.formatMoney(stats.total_expenses || 0, 'loss');
+        if (document.getElementById('billingNetProfit')) document.getElementById('billingNetProfit').innerHTML = utils.formatMoney(stats.profit || 0, 'auto');
 
         // Cargar ventas por vendedor
         const vendorSales = await apiCall.get(`/sales-by-vendor?from=${fromDate}&to=${toDate}`);
-        loadTopVendorsChart(vendorSales);
+        loadTopVendorsChart(vendorSales || []);
 
-        // Cargar estado de inventario (productos más vendidos simulado)
-        loadTopProducts(fromDate, toDate);
+        // Cargar estado de inventario (productos más vendidos)
+        await loadTopProducts(fromDate, toDate);
+
+        // Cargar gráfico de rendimiento diario (requiere endpoint de backend)
+        await loadDailyPerformanceChart(fromDate, toDate);
 
     } catch (error) {
         console.error('Error al cargar reportes:', error);
@@ -78,15 +75,18 @@ async function loadReports() {
  * Carga gráfico de vendedores top
  */
 function loadTopVendorsChart(data) {
-    if (data.length === 0) {
+    const ctx = document.getElementById('topVendorsChart');
+    if (!ctx || !window.Chart) return;
+
+    if (!data || data.length === 0) {
+        if (topVendorsChart) topVendorsChart.destroy();
         return;
     }
 
     const vendorNames = data.map(v => v.vendor);
     const salesData = data.map(v => v.total);
 
-    const ctx = document.getElementById('topVendorsChart');
-    if (ctx && window.Chart) {
+    if (ctx) {
         if (topVendorsChart) topVendorsChart.destroy();
         
         topVendorsChart = new Chart(ctx, {
@@ -124,13 +124,19 @@ function loadTopVendorsChart(data) {
  */
 async function loadTopProducts(fromDate = null, toDate = null) {
     try {
+        // 1. Cargar inventario actual para cruzar datos de costos
+        const inventoryData = await apiCall.get('/inventory') || [];
+        const inventoryMap = new Map();
+        
+        inventoryData.forEach(item => {
+            if (item.product && item.product.id) inventoryMap.set(item.product.id, item);
+        });
+
         let url = '/sales';
         if (fromDate && toDate) {
             url += `?from=${fromDate}&to=${toDate}`;
         }
-        const sales = await apiCall.get(url);
-        const currentInventory = await apiCall.get('/inventory'); // Fetch current inventory for costs
-        const inventoryMap = new Map(currentInventory.map(item => [item.product.id, item]));
+        const sales = await apiCall.get(url) || [];
         
         // Agrupar y sumar ventas por producto
         const productSales = {};
@@ -148,18 +154,17 @@ async function loadTopProducts(fromDate = null, toDate = null) {
             productSales[productId].quantity += sale.quantity;
             productSales[productId].revenue += sale.total;
             
-            // Para precisión histórica, el costo debería estar en el registro de venta.
-            // Aquí usamos el costo actual del inventario como aproximación.
-            const inventoryItem = inventoryMap.get(productId);
-            const unitCost = inventoryItem ? inventoryItem.cost : 0;
-            productSales[productId].cost += sale.quantity * unitCost;
+            // Obtener costo unitario histórico o actual
+            const invItem = inventoryMap.get(productId);
+            const cost = invItem ? invItem.cost : 0;
+            productSales[productId].cost += sale.quantity * cost;
         });
 
         const sortedProducts = Object.values(productSales)
             .sort((a, b) => b.quantity - a.quantity)
             .slice(0, 10);
 
-        const tbody = document.querySelector('#topProductsTable tbody');
+        const tbody = document.getElementById('topProductsTable');
         tbody.innerHTML = '';
         let html = '';
 
@@ -191,29 +196,192 @@ async function loadTopProducts(fromDate = null, toDate = null) {
 }
 
 /**
- * Descarga el reporte de ventas para ARCA en formato CSV
+ * Descarga el Paquete Contable Completo (Ventas, Compras y Egresos)
+ * Ideal para presentación ante contador o control de Monotributo.
  */
-async function downloadArcaReport() {
+async function downloadAccountingPackage() {
     try {
-        const dateFrom = document.getElementById('dateFrom').value;
-        const dateTo = document.getElementById('dateTo').value;
+        const fromDateInput = document.getElementById('dateFrom').value;
+        const toDateInput = document.getElementById('dateTo').value;
 
-        if (!dateFrom || !dateTo) {
-            utils.showNotification('Por favor selecciona ambas fechas para el reporte ARCA', 'warning');
+        if (!fromDateInput || !toDateInput) {
+            utils.showNotification('Selecciona un rango de fechas para el reporte contable', 'warning');
             return;
         }
 
-        const fromDate = new Date(dateFrom).toISOString();
-        const toDate = new Date(dateTo).toISOString();
+        const fromDate = fromDateInput;
+        const toDate = toDateInput + ' 23:59:59';
 
-        // La API ya devuelve el CSV directamente, solo necesitamos abrirlo o descargarlo
-        const url = `${API_BASE}/reports/arca-sales-csv?from=${fromDate}&to=${toDate}`;
-        window.open(url, '_blank'); // Abre en una nueva pestaña para descargar
+        // Solicitamos al backend el paquete completo (Ventas + Compras + Gastos)
+        // El endpoint /reports/accounting-zip debe generar un archivo comprimido
+        const url = `${API_BASE}/reports/accounting-package?from=${fromDate}&to=${toDate}`;
         
-        utils.showNotification('Reporte ARCA generado y descargado.', 'success');
+        utils.showNotification('Generando paquete contable... Por favor espera.', 'info');
+        window.open(url, '_blank');
+        
+        utils.showNotification('Paquete contable generado con éxito.', 'success');
 
     } catch (error) {
-        console.error('Error al descargar reporte ARCA:', error);
-        utils.showNotification('Error al descargar el reporte ARCA', 'error');
+        console.error('Error al descargar reporte contable:', error);
+        utils.showNotification('Error al generar los documentos contables', 'error');
     }
+}
+
+/**
+ * Verifica la facturación de los últimos 12 meses para control de categoría de Monotributo
+ */
+async function checkMonotributoStatus() {
+    try {
+        const today = new Date();
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(today.getFullYear() - 1);
+        
+        const from = oneYearAgo.toISOString().split('T')[0];
+        const to = today.toISOString().split('T')[0] + ' 23:59:59';
+
+        const stats = await apiCall.get(`/dashboard-stats?from=${from}&to=${to}`);
+        const annualBilling = stats.total_sales || 0;
+
+        // Si existe un elemento de alerta en el UI, mostrar el estado
+        const alertElement = document.getElementById('monotributoAlert');
+        if (alertElement) {
+            alertElement.innerHTML = `
+                <strong>Facturación Anual Móvil:</strong> ${utils.formatMoney(annualBilling, 'neutral')} 
+                <small class="d-block text-muted">Período: ${utils.formatDate(from)} al ${utils.formatDate(today)}</small>
+            `;
+        }
+    } catch (error) {
+        console.warn('No se pudo calcular el estado del Monotributo:', error);
+    }
+}
+
+/**
+ * Carga y renderiza un gráfico de rendimiento diario (ventas/ganancias) para el período.
+ * NOTA: Este gráfico requiere un endpoint de backend que devuelva datos diarios para un rango de fechas.
+ * Por ejemplo: GET /api/daily-performance?from=...&to=...
+ * El endpoint debería devolver un array de objetos como:
+ * [{ date: "YYYY-MM-DD", sales: 1000, profit: 300 }, ...]
+ */
+async function loadDailyPerformanceChart(fromDate, toDate) {
+    const ctx = document.getElementById('dailyPerformanceChart'); // Asumiendo un canvas HTML con este ID
+    if (!ctx || !window.Chart) {
+        console.warn('Canvas para gráfico de rendimiento diario no encontrado o Chart.js no cargado.');
+        return;
+    }
+
+    let dailyPerformanceData = [];
+    try {
+        // Intentamos obtener los datos del endpoint de facturación diaria
+        const response = await apiCall.get(`/daily-billing?from=${fromDate}&to=${toDate}`);
+        dailyPerformanceData = response.chart_data || [];
+
+        // Actualizar los campos del resumen detallado si los elementos existen en el DOM
+        const summaryMap = {
+            'billingTotalSales': { val: response.total_sales, format: true, type: 'gain' },
+            'billingTotalCosts': { val: response.total_costs, format: true, type: 'loss' },
+            'billingTotalExpenses': { val: response.total_expenses, format: true, type: 'loss' },
+            'billingNetProfit': { val: response.net_profit, format: true, type: 'auto' },
+            'billingSalesCount': { val: response.sales_count, format: false },
+            'billingTopVendor': { val: response.top_vendor, format: false },
+            'billingCashPayments': { val: response.payment_stats?.Efectivo, format: false },
+            'billingOtherPayments': { val: response.payment_stats?.Otros, format: false }
+        };
+
+        Object.keys(summaryMap).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                const item = summaryMap[id];
+                el.innerHTML = item.format ? utils.formatMoney(item.val || 0, item.type) : (item.val || 0);
+            }
+        });
+
+    } catch (e) {
+        console.warn('No se pudo cargar el rendimiento diario:', e);
+    }
+
+    if (!dailyPerformanceData || dailyPerformanceData.length === 0) {
+        // Opcional: Mostrar un mensaje en el canvas si no hay datos
+        const context = ctx.getContext('2d');
+        context.clearRect(0, 0, ctx.width, ctx.height);
+        context.font = '14px Arial';
+        context.fillStyle = '#6c757d'; // text-muted color
+        context.textAlign = 'center';
+        context.fillText('No hay datos diarios para el período seleccionado.', ctx.width / 2, ctx.height / 2);
+        if (dailyChart) dailyChart.destroy(); // Destruir chart anterior si existe
+        return;
+    }
+
+    const dates = dailyPerformanceData.map(d => utils.formatDate(d.date));
+    const sales = dailyPerformanceData.map(d => d.sales);
+    const profits = dailyPerformanceData.map(d => d.profit);
+    const expenses = dailyPerformanceData.map(d => d.expenses || 0);
+
+    if (dailyChart) dailyChart.destroy();
+
+    dailyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Ventas Diarias',
+                    data: sales,
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Ganancia Diaria',
+                    data: profits,
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Gastos Diarios',
+                    data: expenses,
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Rendimiento Diario (Ventas y Ganancias)'
+                }
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    title: {
+                        display: true,
+                        text: 'Fecha'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Monto ($)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return utils.formatMoney(value, 'neutral', false);
+                        }
+                    }
+                }
+            }
+        }
+    });
 }

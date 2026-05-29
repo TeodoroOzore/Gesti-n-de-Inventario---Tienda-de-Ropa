@@ -1,10 +1,66 @@
-from flask import Blueprint, request, jsonify, make_response
+import io
+import os
+import json
+import zipfile
+import csv
+from flask import Blueprint, request, jsonify, make_response, send_file
 from app import db # Asegúrate de que 'db' esté importado
 from app.models import Vendor, Product, Inventory, Sale, Income, Expense
 from datetime import datetime
 from sqlalchemy import func
 
 bp = Blueprint('api', __name__)
+
+# ============== INFORMACIÓN DEL NEGOCIO ==============
+# Nota: En una implementación ideal, esto debería estar en una tabla 'Settings' en models.py.
+SETTINGS_FILE = 'data/business_settings.json'
+
+def load_business_data():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {
+        "name": "Mi Tienda de Ropa",
+        "cuit": "00-00000000-0",
+        "address": "Calle Falsa 123",
+        "tax_condition": "Monotributista"
+    }
+
+business_data = load_business_data()
+
+@bp.route('/business-info', methods=['GET', 'POST'])
+def business_info():
+    global business_data
+    if request.method == 'POST':
+        data = request.get_json()
+        business_data["name"] = data.get('name', business_data['name'])
+        business_data["cuit"] = data.get('cuit', business_data['cuit'])
+        business_data["address"] = data.get('address', business_data['address'])
+        business_data["tax_condition"] = data.get('tax_condition', business_data['tax_condition'])
+        
+        os.makedirs('data', exist_ok=True)
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(business_data, f)
+        return jsonify(business_data)
+    return jsonify(business_data)
+
+def parse_date(date_str):
+    """Helper para parsear fechas de forma segura"""
+    if not date_str:
+        return None
+    try:
+        # Maneja formatos YYYY-MM-DD y YYYY-MM-DD HH:MM:SS
+        if ' ' in date_str:
+            return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        return datetime.strptime(date_str, '%Y-%m-%d')
+    except ValueError:
+        try:
+            return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        except:
+            return None
 
 # ============== VENDEDORES ==============
 @bp.route('/vendors', methods=['GET', 'POST'])
@@ -170,19 +226,13 @@ def sales():
     
     query = Sale.query
     
-    if date_from:
-        try:
-            from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-            query = query.filter(Sale.date >= from_dt)
-        except (ValueError, AttributeError):
-            pass
+    from_dt = parse_date(date_from)
+    if from_dt:
+        query = query.filter(Sale.date >= from_dt)
     
-    if date_to:
-        try:
-            to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-            query = query.filter(Sale.date <= to_dt)
-        except (ValueError, AttributeError):
-            pass
+    to_dt = parse_date(date_to)
+    if to_dt:
+        query = query.filter(Sale.date <= to_dt)
     
     sales_list = query.order_by(Sale.date.desc()).all()
     return jsonify([s.to_dict() for s in sales_list])
@@ -280,16 +330,13 @@ def income():
     
     query = Income.query
     
-    if date_from:
-        try:
-            query = query.filter(Income.date >= datetime.fromisoformat(date_from.replace('Z', '+00:00')))
-        except (ValueError, AttributeError):
-            pass
-    if date_to:
-        try:
-            query = query.filter(Income.date <= datetime.fromisoformat(date_to.replace('Z', '+00:00')))
-        except (ValueError, AttributeError):
-            pass
+    from_dt = parse_date(date_from)
+    if from_dt:
+        query = query.filter(Income.date >= from_dt)
+        
+    to_dt = parse_date(date_to)
+    if to_dt:
+        query = query.filter(Income.date <= to_dt)
     
     income_list = query.all()
     return jsonify([i.to_dict() for i in income_list])
@@ -359,16 +406,13 @@ def expenses():
     
     query = Expense.query
     
-    if date_from:
-        try:
-            query = query.filter(Expense.date >= datetime.fromisoformat(date_from.replace('Z', '+00:00')))
-        except (ValueError, AttributeError):
-            pass
-    if date_to:
-        try:
-            query = query.filter(Expense.date <= datetime.fromisoformat(date_to.replace('Z', '+00:00')))
-        except (ValueError, AttributeError):
-            pass
+    from_dt = parse_date(date_from)
+    if from_dt:
+        query = query.filter(Expense.date >= from_dt)
+        
+    to_dt = parse_date(date_to)
+    if to_dt:
+        query = query.filter(Expense.date <= to_dt)
     
     expenses_list = query.all()
     return jsonify([e.to_dict() for e in expenses_list])
@@ -384,20 +428,33 @@ def delete_expense(id):
 @bp.route('/dashboard-stats')
 def dashboard_stats():
     """Estadísticas para el dashboard"""
+    date_from = request.args.get('from')
+    date_to = request.args.get('to')
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
+    # Query bases
+    sales_query = Sale.query
+    expenses_query = Expense.query
+
+    from_dt = parse_date(date_from)
+    if from_dt:
+        sales_query = sales_query.filter(Sale.date >= from_dt)
+        expenses_query = expenses_query.filter(Expense.date >= from_dt)
+        
+    to_dt = parse_date(date_to)
+    if to_dt:
+        sales_query = sales_query.filter(Sale.date <= to_dt)
+        expenses_query = expenses_query.filter(Expense.date <= to_dt)
+
     # Ventas del día
     sales_today = db.session.query(func.sum(Sale.total)).filter(
         Sale.date >= today
     ).scalar() or 0
     
-    # Total de ingresos de mercadería
+    # Total de ingresos de mercadería (Stock Actual)
     total_inventory_cost = db.session.query(
         func.sum(Inventory.quantity * Inventory.cost)
     ).scalar() or 0
-    
-    # Total egresos (gastos)
-    total_expenses = db.session.query(func.sum(Expense.amount)).scalar() or 0
     
     # Cantidad de productos en inventario
     total_products = db.session.query(func.count(Product.id)).scalar() or 0
@@ -406,11 +463,17 @@ def dashboard_stats():
     total_items = db.session.query(func.sum(Inventory.quantity)).scalar() or 0
     
     # Rentabilidad
-    total_sales = db.session.query(func.sum(Sale.total)).scalar() or 0
-    total_costs = db.session.query(
-        func.sum(Sale.quantity * Inventory.cost)
-    ).select_from(Sale).join(Inventory, Sale.product_id == Inventory.product_id).scalar() or 0
+    # Obtenemos los IDs de las ventas filtradas para calcular costos precisos
+    filtered_sale_ids = [s.id for s in sales_query.with_entities(Sale.id).all()]
     
+    total_sales = sales_query.with_entities(func.sum(Sale.total)).scalar() or 0
+    
+    total_costs = db.session.query(func.sum(Sale.quantity * Inventory.cost))\
+        .join(Inventory, Sale.product_id == Inventory.product_id)\
+        .filter(Sale.id.in_(filtered_sale_ids))\
+        .scalar() or 0 if filtered_sale_ids else 0
+    
+    total_expenses = expenses_query.with_entities(func.sum(Expense.amount)).scalar() or 0
     profit = total_sales - total_costs - total_expenses
     profitability = ((profit / total_sales) * 100) if total_sales > 0 else 0
     
@@ -438,10 +501,12 @@ def sales_by_vendor():
         func.count(Sale.id)
     ).outerjoin(Sale).group_by(Vendor.id)
     
-    if date_from:
-        query = query.filter(Sale.date >= datetime.fromisoformat(date_from))
-    if date_to:
-        query = query.filter(Sale.date <= datetime.fromisoformat(date_to))
+    from_dt = parse_date(date_from)
+    if from_dt:
+        query = query.filter(Sale.date >= from_dt)
+    to_dt = parse_date(date_to)
+    if to_dt:
+        query = query.filter(Sale.date <= to_dt)
     
     results = query.all()
     return jsonify([{
@@ -480,12 +545,44 @@ def inventory_status():
 
 @bp.route('/daily-billing')
 def daily_billing():
-    """Facturación del día"""
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    """Facturación del día o rango de fechas con datos para gráfico"""
+    date_from = request.args.get('from')
+    date_to = request.args.get('to')
     
-    sales = Sale.query.filter(Sale.date >= today).all()
-    expenses = Expense.query.filter(Expense.date >= today).all()
+    if date_from and date_to:
+        start_date = parse_date(date_from)
+        end_date = parse_date(date_to)
+    else:
+        start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = datetime.now().replace(hour=23, minute=59, second=59)
+
+    sales = Sale.query.filter(Sale.date >= start_date, Sale.date <= end_date).all()
+    expenses = Expense.query.filter(Expense.date >= start_date, Expense.date <= end_date).all()
     
+    # Agrupar por día para el gráfico
+    chart_map = {}
+    
+    # Procesar ventas
+    for s in sales:
+        day = s.date.strftime('%Y-%m-%d')
+        if day not in chart_map:
+            chart_map[day] = {'date': day, 'sales': 0, 'profit': 0, 'expenses': 0}
+        chart_map[day]['sales'] += s.total
+        # Calcular ganancia (venta - costo)
+        inv = Inventory.query.filter_by(product_id=s.product_id).first()
+        cost = s.quantity * (inv.cost or 0) if inv else 0
+        chart_map[day]['profit'] += (s.total - cost)
+
+    # Procesar gastos
+    for e in expenses:
+        day = e.date.strftime('%Y-%m-%d')
+        if day not in chart_map:
+            chart_map[day] = {'date': day, 'sales': 0, 'profit': 0, 'expenses': 0}
+        
+        chart_map[day]['expenses'] += e.amount
+        # Restar gastos de la ganancia diaria
+        chart_map[day]['profit'] -= e.amount
+
     total_sales = sum(s.total for s in sales)
     total_expenses = sum(e.amount for e in expenses)
     
@@ -521,50 +618,74 @@ def daily_billing():
         'sales_count': len(sales),
         'top_vendor': top_vendor,
         'payment_stats': payment_stats,
-        'sales': [s.to_dict() for s in sales]
+        'sales': [s.to_dict() for s in sales],
+        'chart_data': sorted(chart_map.values(), key=lambda x: x['date'])
     })
 
-@bp.route('/reports/arca-sales-csv')
-def arca_sales_csv():
-    """Genera un reporte CSV de ventas para ARCA (o similar)"""
-    date_from_str = request.args.get('from')
-    date_to_str = request.args.get('to')
-
-    query = Sale.query
-
-    if date_from_str:
-        try:
-            from_dt = datetime.fromisoformat(date_from_str.replace('Z', '+00:00'))
-            query = query.filter(Sale.date >= from_dt)
-        except (ValueError, AttributeError):
-            pass
+@bp.route('/reports/accounting-package')
+def accounting_package():
+    """Genera un ZIP con reportes de Ventas, Compras y Gastos en CSV"""
+    date_from = request.args.get('from')
+    date_to = request.args.get('to')
     
-    if date_to_str:
-        try:
-            to_dt = datetime.fromisoformat(date_to_str.replace('Z', '+00:00'))
-            query = query.filter(Sale.date <= to_dt)
-        except (ValueError, AttributeError):
-            pass
+    from_dt = parse_date(date_from)
+    to_dt = parse_date(date_to)
 
-    sales = query.order_by(Sale.date).all()
+    # 1. Preparar CSV de Ventas
+    sales = Sale.query.filter(Sale.date >= from_dt, Sale.date <= to_dt).all()
+    sales_io = io.StringIO()
+    sales_writer = csv.writer(sales_io)
+    sales_writer.writerow(['Fecha', 'Comprobante', 'Vendedor', 'Producto', 'Cantidad', 'Precio Unit.', 'Total', 'Metodo Pago'])
+    for s in sales:
+        sales_writer.writerow([
+            s.date.strftime('%Y-%m-%d %H:%M'),
+            f"Venta #{s.id}",
+            s.vendor.name if s.vendor else 'N/A',
+            s.product.name if s.product else 'N/A',
+            s.quantity, s.price, s.total, s.payment_method
+        ])
 
-    # Encabezados del CSV
-    header = "Fecha,Hora,Vendedor,Codigo_Producto,Nombre_Producto,Cantidad,Precio_Unitario,Total_Venta,Metodo_Pago\n"
-    csv_lines = [header]
+    # 2. Preparar CSV de Compras (Ingresos)
+    incomes = Income.query.filter(Income.date >= from_dt, Income.date <= to_dt).all()
+    incomes_io = io.StringIO()
+    incomes_writer = csv.writer(incomes_io)
+    incomes_writer.writerow(['Fecha', 'Producto', 'Cantidad', 'Costo Unit.', 'Costo Total', 'Proveedor'])
+    for i in incomes:
+        incomes_writer.writerow([
+            i.date.strftime('%Y-%m-%d'),
+            i.product.name if i.product else 'N/A',
+            i.quantity, i.cost, i.total_cost, i.provider or '-'
+        ])
 
-    for sale in sales:
-        date_str = sale.date.strftime('%Y-%m-%d')
-        time_str = sale.date.strftime('%H:%M:%S')
-        vendor_name = sale.vendor.name if sale.vendor else 'Desconocido'
-        product_code = sale.product.code if sale.product else 'N/A'
-        product_name = sale.product.name if sale.product else 'Producto Eliminado'
+    # 3. Preparar CSV de Gastos (Egresos)
+    expenses = Expense.query.filter(Expense.date >= from_dt, Expense.date <= to_dt).all()
+    expenses_io = io.StringIO()
+    expenses_writer = csv.writer(expenses_io)
+    expenses_writer.writerow(['Fecha', 'Categoria', 'Descripcion', 'Monto', 'Notas'])
+    for e in expenses:
+        expenses_writer.writerow([
+            e.date.strftime('%Y-%m-%d'),
+            e.category, e.description, e.amount, e.notes or '-'
+        ])
+
+    # Crear el ZIP en memoria
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w') as zf:
+        zf.writestr('libro_ventas.csv', sales_io.getvalue())
+        zf.writestr('libro_compras_mercaderia.csv', incomes_io.getvalue())
+        zf.writestr('libro_gastos_operativos.csv', expenses_io.getvalue())
         
-        line = f"{date_str},{time_str},{vendor_name},{product_code},{product_name},{sale.quantity},{sale.price:.2f},{sale.total:.2f},{sale.payment_method}\n"
-        csv_lines.append(line)
+        # Agregar info del negocio si existe
+        info_txt = f"Reporte Contable: {business_data['name']}\nCUIT: {business_data['cuit']}\nPeriodo: {date_from} al {date_to}"
+        zf.writestr('info_negocio.txt', info_txt)
 
-    csv_data = "".join(csv_lines)
-
-    response = make_response(csv_data)
-    response.headers["Content-Disposition"] = f"attachment; filename=reporte_ventas_ARCA_{date_from_str or 'inicio'}_{date_to_str or 'fin'}.csv"
-    response.headers["Content-type"] = "text/csv"
-    return response
+    memory_file.seek(0)
+    
+    filename = f"paquete_contable_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=filename
+    )

@@ -1,3 +1,18 @@
+
+
+# app/routes/api.py (ejemplo)
+@api_bp.route('/daily-performance', methods=['GET'])
+def get_daily_performance():
+    from_date_str = request.args.get('from')
+    to_date_str = request.args.get('to')
+    # ... lógica para consultar la base de datos y agrupar ventas/ganancias por día ...
+    # Devolver un JSON como:
+    # [
+    #     {"date": "2023-01-01", "sales": 1200, "profit": 350},
+    #     {"date": "2023-01-02", "sales": 900, "profit": 280},
+    #     # ...
+    # ]
+    pass
 # Gestión de Inventario - Tienda de Ropa
 
 ## Descripción del Proyecto
